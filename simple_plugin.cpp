@@ -48,15 +48,7 @@ int main()
 {
 
     SPlugin plugin = {};
-    bool32 result = sp_win32_load_plugin(&plugin,plugin_name);
-
-
-    SPlugin plugin2 = {};
-     result = sp_win32_load_plugin(&plugin2,"exodus.dll");
-    SPlugin plugin3 = {};
-     result = sp_win32_load_plugin(&plugin3,"ephiates");
-    SPlugin plugin4 = {};
-     result = sp_win32_load_plugin(&plugin4,"elea");
+    bool32 result = sp_win32_load_plugin(plugin_name, true);
 
     //Save the lastwrite time when we first load the plugin
     WIN32_FIND_DATA find_data = {};
@@ -81,7 +73,7 @@ int main()
             printf("plugin modified");
             //Reload the dll
             FreeLibrary(plugin.handle);
-            result = sp_win32_load_plugin(&plugin,plugin_name);
+            result = sp_win32_load_plugin(plugin_name, true);
             old_file_time = new_file_time;
             //Reload the procs
             plugin_function = (my_print_func)GetProcAddress(plugin.handle,"my_print");

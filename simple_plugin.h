@@ -42,6 +42,7 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <stdlib.h> //malloc
 #endif //_WIN32
 
 // [INTERNAL] Types --------------
@@ -74,8 +75,11 @@ typedef int32 bool32;
 struct SPlugin
 {
     uint64 hash;
+    uint64 api_hash;
     uint32 reload_count;
     bool32 reloadable;
+
+    void* api;
     
     union {
         HMODULE handle;
@@ -83,8 +87,13 @@ struct SPlugin
 
 };
 
-//Hash Functions
+
+
+
+//Hash Functions ----------------------------------------------------
 //@TODO: Try out MurmurHash3
+
+#define SP_HASH(string) sp_internal_djb2_hash(string)
 
 // djb2 Taken from  "http://www.cse.yorku.ca/~oz/hash.html"
 unsigned long sp_internal_djb2_hash(char* str)
@@ -96,10 +105,95 @@ unsigned long sp_internal_djb2_hash(char* str)
     }    
     return (hash);
 }
-//End Hash Functions
+//End Hash Functions ----------------------------------------------------
 
+
+
+//[INTERNAL]
+//API registry -- idea taken from "http://ourmachinery.com/post/little-machines-working-together-part-1/"
+
+
+
+struct APIRegistry
+{
+    int32 capacity;
+    int32 used;
+
+    SPlugin *plugins;
+
+    //Keep track of the current plugin being added.
+    SPlugin *curr;
+
+    void (*add)(char* plugin_name);
+    void (*remove)(char* plugin_name);
+    void* (*get)(char* api_name);
+
+};
+
+
+void sp_internal_api_registry_add(char* api_name);
+void sp_internal_api_registry_remove(char* plugin_name );
+void * sp_internal_api_registry_get(char* api_name);
+
+
+//#define SP_REGISTER_API(name, )
+
+#define SP_REGISTRY_INITIAL_CAPACITY 10
+
+internal APIRegistry sp_internal_registry_create()
+{
+    APIRegistry reg = {};
+    reg.capacity        = SP_REGISTRY_INITIAL_CAPACITY;
+    reg.used            = 0;
+    reg.plugins         = (SPlugin*)malloc(sizeof(SPlugin) * reg.capacity);
+    reg.curr            = reg.plugins;
+    reg.add             = sp_internal_api_registry_add;
+    reg.remove          = sp_internal_api_registry_remove;
+    reg.get             = sp_internal_api_registry_get;
+    return(reg);
+}
+
+global_variable APIRegistry sp_registry = sp_internal_registry_create();
+
+internal APIRegistry* 
+sp_registry_get()
+{
+    return (&sp_registry);
+}
+
+void sp_internal_api_registry_add(char* api_name)
+{
+    APIRegistry *reg = sp_registry_get();
+    SPlugin *plugin = reg->curr;
+    plugin->api_hash = SP_HASH(api_name);
+
+#ifdef _WIN32
+    plugin->api = GetProcAddress(plugin->handle,api_name);
+#else
+    #error No other OS defined
+#endif //_WIN32
+
+    reg->used++;
+    reg->curr++;
+}
+
+void sp_internal_api_registry_remove(char* api_name )
+{
+
+}
+
+void * sp_internal_api_registry_get(char* api_name)
+{
+    return(0);
+}
+
+
+//
+//End API Registry ----------------------------------------------------
+
+// String utilities ----------------------------------------------------
 inline  int32
-sp_string_length(char* string)
+sp_string_len(char* string)
 {
     int32 count = 0;
     while(*string++)
@@ -112,24 +206,70 @@ sp_string_length(char* string)
 inline int32
 sp_string_size(char* string)
 {
-    int32 length = sp_string_length(string);
+    int32 length = sp_string_len(string);
 
     int32 size = length / sizeof(string[0]);
     return(size);
 }
 
-
-
-bool32 sp_win32_load_plugin(SPlugin *plugin, char* plugin_name)
+inline int32
+sp_string_size_strip_extension(char* string)
 {
-    *plugin = {}; //reset
-    plugin->hash = sp_internal_djb2_hash(plugin_name);
+    char* c = string;
+    int32 len = 0;
+    while(*c++)
+    {
+        if(*c == '.')
+        {
+            break;
+        }
+        ++len;
+    }
+    int32 size = len / sizeof(string[0]);
+    return(size);
+}
+
+inline void
+sp_string_build_load_function_name(char* plugin_name, char* load_function_name)
+{
+    char* prefix = "load_";
+    char* c = load_function_name;
+    *c++ = prefix[0]; //'l'
+    *c++ = prefix[1]; //'o'
+    *c++ = prefix[2]; //'a'
+    *c++ = prefix[3]; //'d'
+    *c++ = prefix[4]; //'_'
+
+    char* t = plugin_name;
+    while(*t)
+    {
+        if(*t == '.')
+        {
+            *c = '\0';
+            break;
+        }
+        *c++ = *t++;
+    }
+}
+
+// End String Utilities
+
+// Plugin Functions
+
+typedef void (*load_func)(APIRegistry *);
+
+bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
+{
+    APIRegistry *reg = sp_registry_get();
+    SPlugin *plugin = reg->curr; 
+    plugin->hash = SP_HASH(plugin_name);
+    plugin->reloadable = reloadable;
     
     char* suffix = "_tmp";
     size_t terminator_size = 1;
     size_t size = sp_string_size(plugin_name) + sp_string_size(suffix) + terminator_size; 
 
-    char* temp_plugin_name = (char*)malloc(size); 
+    char* temp_plugin_name = (char*)malloc(size); //@TODO: Call free
     char* t = temp_plugin_name;
 
     char *c = plugin_name;
@@ -160,62 +300,29 @@ bool32 sp_win32_load_plugin(SPlugin *plugin, char* plugin_name)
         //@TODO: Log could not Load plugin
     }
 
+    //call the plugin load function
+
+    //check if the plugin_name has extension and if yes then strip it.
+    int32 strin_size_no_extension = sp_string_size_strip_extension(plugin_name);
+    char* prefix = "load_";
+    terminator_size = 1;
+    size = sp_string_size(prefix) + strin_size_no_extension + terminator_size; 
+
+    char* load_function_name = (char*)malloc(size); //@TODO: Call free
+    sp_string_build_load_function_name(plugin_name,load_function_name);
+
+    load_func load_function = (load_func)GetProcAddress(plugin->handle,load_function_name);
+
+    load_function(&sp_registry);
+
+    free(temp_plugin_name);
+    free(load_function_name);
+
     return true;
 
 }
 
+//End Plugin Functions
 
 
 
-
-//[INTERNAL]
-//API registry -- idea taken from "http://ourmachinery.com/post/little-machines-working-together-part-1/"
-struct APIRegistry
-{
-    int32 capacity;
-    int32 used;
-
-    SPlugin *plugins;
-
-    void (*add)(char* plugin_name);
-    void (*remove)(char* plugin_name);
-
-    void* (*get)(char* api_name);
-
-};
-
-void sp_internal_api_registry_add(char* plugin_name)
-{
-
-}
-
-void sp_internal_api_registry_remove(char* plugin_name )
-{
-
-}
-
-void * sp_internal_api_registry_get(char* api_name)
-{
-    return(0);
-}
-
-//@NOTE: Set the initial size of the registry to be big enough to contain SP_INITIAL_NUMBER_OG_PLUGINS
-#define SP_INITIAL_NUMBER_OF_PLUGINS 10
-
-//@NOTE: The se growth factor to grow the registry memory once we reach capacity.
-#define SP_REGISTRY_GROWTH_FACTOR 2
-
-
-
-internal APIRegistry sp_internal_registry_create(int32 initial_size = SP_INITIAL_NUMBER_OF_PLUGINS)
-{
-    APIRegistry reg = {};
-    reg.capacity = initial_size;
-    reg.plugins  = (SPlugin*)malloc(sizeof(SPlugin)*reg.capacity); 
-    reg.add      = sp_internal_api_registry_add;
-    reg.remove   = sp_internal_api_registry_remove;
-    reg.get      = sp_internal_api_registry_get;
-    return(reg);
-}
-
-APIRegistry registry = sp_internal_registry_create();
