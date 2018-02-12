@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "filesystem": "cpp",
+        "xstring": "cpp",
+        "chrono": "cpp",
+        "xutility": "cpp",
+        "codecvt": "cpp",
+        "xlocale": "cpp"
+    }
+}
