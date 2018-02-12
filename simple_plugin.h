@@ -42,7 +42,7 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-#include <stdlib.h> //malloc
+#include <stdlib.h> //malloc, realloc
 #endif //_WIN32
 
 // [INTERNAL] Types --------------
@@ -138,7 +138,8 @@ void * sp_internal_api_registry_get(char* api_name);
 
 //#define SP_REGISTER_API(name, )
 
-#define SP_REGISTRY_INITIAL_CAPACITY 10
+#define SP_REGISTRY_INITIAL_CAPACITY 1
+#define SP_REGISTRY_GROWTH_FACTOR    2
 
 internal APIRegistry sp_internal_registry_create()
 {
@@ -174,7 +175,11 @@ void sp_internal_api_registry_add(char* api_name)
 #endif //_WIN32
 
     reg->used++;
-    reg->curr++;
+
+    if(reg->used < reg->capacity) 
+    {
+        reg->curr++;
+    }
 }
 
 void sp_internal_api_registry_remove(char* api_name )
@@ -187,7 +192,25 @@ void * sp_internal_api_registry_get(char* api_name)
     return(0);
 }
 
+//Used to add a new plugin to the registry, if there is enough space all it does is return a 
+//pointer to the curr plugin. If there is not enough space then we will reallocate, copy the old memory
+//and then return a pointer to the new curr.
+SPlugin* sp_internal_api_registry_add_new_plugin()
+{
+    APIRegistry *reg = sp_registry_get();
+    if(reg->used < reg->capacity)
+    {
+        return(reg->curr);
+    }
+    else
+    {
+        reg->capacity = reg->capacity*SP_REGISTRY_GROWTH_FACTOR;
+        realloc(reg->plugins,sizeof(SPlugin) * reg->capacity);
+        reg->curr = reg->plugins + reg->used;
 
+        return(reg->curr);
+    }
+}
 //
 //End API Registry ----------------------------------------------------
 
@@ -261,7 +284,7 @@ typedef void (*load_func)(APIRegistry *);
 bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
 {
     APIRegistry *reg = sp_registry_get();
-    SPlugin *plugin = reg->curr; 
+    SPlugin *plugin = sp_internal_api_registry_add_new_plugin(); 
     plugin->hash = SP_HASH(plugin_name);
     plugin->reloadable = reloadable;
     
@@ -269,7 +292,7 @@ bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
     size_t terminator_size = 1;
     size_t size = sp_string_size(plugin_name) + sp_string_size(suffix) + terminator_size; 
 
-    char* temp_plugin_name = (char*)malloc(size); //@TODO: Call free
+    char* temp_plugin_name = (char*)malloc(size); ////@TODO: Use an internal buffer for these.
     char* t = temp_plugin_name;
 
     char *c = plugin_name;
@@ -308,18 +331,21 @@ bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
     terminator_size = 1;
     size = sp_string_size(prefix) + strin_size_no_extension + terminator_size; 
 
-    char* load_function_name = (char*)malloc(size); //@TODO: Call free
+    char* load_function_name = (char*)malloc(size); //@TODO: Use an internal buffer for these.
     sp_string_build_load_function_name(plugin_name,load_function_name);
-
+    
     load_func load_function = (load_func)GetProcAddress(plugin->handle,load_function_name);
-
+    if(!load_function)
+    {
+        SP_Assert(!"Could not locate the plugin load function!!!");
+    }
     load_function(&sp_registry);
 
-    free(temp_plugin_name);
-    free(load_function_name);
-
+    //@TODO: Delete these calls to free and use an internal buffer.
+    //free(temp_plugin_name);
+    //free(load_function_name);
+    
     return true;
-
 }
 
 //End Plugin Functions

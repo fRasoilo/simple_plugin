@@ -9,46 +9,14 @@
 #include "simple_plugin.h"
 
 char* plugin_name = "plugin_example.dll";
-
-#if 0
-HMODULE load_plugin(char* plugin_name)
-{
-    size_t plugin_name_size = 0;
-    char *c = plugin_name;
-    while(*c)
-    {
-        plugin_name_size++;
-        ++c;
-    }
-
-    size_t size = sizeof(char) * (plugin_name_size + 4);
-    char* temp_plugin_name = (char*)malloc(sizeof(char) * (plugin_name_size + 5)); //4 comes from '_tmp' and the null terminator
-    char* tmp = temp_plugin_name;
-
-    c = plugin_name;
-    while(*c)
-    {
-        if(*c == '.')
-        {
-            *tmp++ = '_';
-            *tmp++ = 't';
-            *tmp++ = 'm';
-            *tmp++ = 'p';
-        }
-        *tmp++ = *c++;
-    }
-    *tmp = '\0';
-
-    bool result = CopyFile(plugin_name,temp_plugin_name,0);
-    return(LoadLibraryA(temp_plugin_name));
-}
-#endif
+char* second_plugin = "second_plugin.dll";
 
 int main()
 {
 
     SPlugin plugin = {};
     bool32 result = sp_win32_load_plugin(plugin_name, true);
+    result = sp_win32_load_plugin(second_plugin, true);
 
     //Save the lastwrite time when we first load the plugin
     WIN32_FIND_DATA find_data = {};
