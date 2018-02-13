@@ -80,10 +80,12 @@ struct SPlugin
     bool32 reloadable;
 
     void* api;
-    
-    union {
-        HMODULE handle;
-    };
+    void* unload_func;
+
+    //Win32 Specific
+    HMODULE library_handle;
+    HANDLE file_handle;
+    FILETIME last_write_time;
 
 };
 
@@ -143,8 +145,7 @@ void * sp_internal_api_registry_get(char* api_name);
 
 #define SP_REGISTER_API(reg,api) reg->add(#api,&api)
 
-//@FIXME: There was a weird bug when using realloc for the second time when this was set to 1.
-#define SP_REGISTRY_INITIAL_CAPACITY 1
+#define SP_REGISTRY_INITIAL_CAPACITY 10
 #define SP_REGISTRY_GROWTH_FACTOR    2
 
 internal APIRegistry sp_internal_registry_create()
@@ -208,6 +209,7 @@ void sp_internal_api_registry_add(char* api_name, void* api)
 
 void sp_internal_api_registry_remove(char* api_name)
 {
+    //@TODO: Make sure to close the file_handle (win32) if this was a reloadable plugin.
     APIRegistry *reg = sp_registry_get();
 
     uint64 desired_api_hash = SP_HASH(api_name);
@@ -338,11 +340,36 @@ sp_string_build_load_function_name(char* plugin_name, char* load_function_name)
     }
 }
 
+inline void
+sp_string_build_unload_function_name(char* plugin_name, char* load_function_name)
+{
+    char* prefix = "unload_";
+    char* c = load_function_name;
+    *c++ = prefix[0]; //'u'
+    *c++ = prefix[1]; //'n'
+    *c++ = prefix[2]; //'l'
+    *c++ = prefix[3]; //'o'
+    *c++ = prefix[4]; //'a'
+    *c++ = prefix[5]; //'d'
+    *c++ = prefix[6]; //'_'
+    
+    char* t = plugin_name;
+    while(*t)
+    {
+        if(*t == '.')
+        {
+            *c = '\0';
+            break;
+        }
+        *c++ = *t++;
+    }
+}
 // End String Utilities
 
 // Plugin Functions
 
 typedef void (*load_func)(APIRegistry *);
+typedef void (*unload_func)(APIRegistry *);
 
 bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
 {
@@ -378,9 +405,19 @@ bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
         //@TODO: Log could not COPY plugin to temp_plugin.
     }
 
-    plugin->handle = LoadLibraryA(temp_plugin_name);
+    plugin->library_handle = LoadLibraryA(temp_plugin_name);
 
-    if(!plugin->handle)
+    
+    if(reloadable) 
+    {
+        
+        plugin->file_handle = CreateFile(plugin_name,0,0,0,OPEN_EXISTING,0,0);
+        FILETIME last_write_time = {};
+        GetFileTime(plugin->file_handle,0,0,&last_write_time);
+        plugin->last_write_time = last_write_time;        
+    }
+
+    if(!plugin->library_handle)
     {
         return false;
         //@TODO: Log could not Load plugin
@@ -397,12 +434,25 @@ bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
     char* load_function_name = (char*)malloc(size); //@TODO: Use an internal buffer for these.
     sp_string_build_load_function_name(plugin_name,load_function_name);
     
-    load_func load_function = (load_func)GetProcAddress(plugin->handle,load_function_name);
+    load_func load_function = (load_func)GetProcAddress(plugin->library_handle,load_function_name);
     if(!load_function)
     {
         SP_Assert(!"Could not locate the plugin load function!!!");
     }
     load_function(&sp_registry);
+
+    //finally let's save the address of the unload function
+    prefix = "unload_";
+    size = sp_string_size(prefix) + strin_size_no_extension + terminator_size; 
+    char* unload_function_name = (char*)malloc(size); //@TODO: Use an internal buffer for these.
+    sp_string_build_unload_function_name(plugin_name,unload_function_name);
+    plugin->unload_func = GetProcAddress(plugin->library_handle,unload_function_name);
+    if(!plugin->unload_func)
+    {
+        SP_Assert(!"Could not locate the plugin UNLOAD function!!!");
+    }
+    unload_func unload_function = (unload_func)plugin->unload_func;
+    unload_function(&sp_registry);
 
     //@TODO: Delete these calls to free and use an internal buffer.
     //free(temp_plugin_name);

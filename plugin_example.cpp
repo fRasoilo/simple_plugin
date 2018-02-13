@@ -11,7 +11,7 @@ extern "C"
 
      __declspec(dllexport) void my_print()
     {
-        printf("$$$$$$ \n");
+        printf("!!!!!!!!!! \n");
     }
 
     //NECESSARY FUNCTION

@@ -24,7 +24,24 @@ int main()
     bool32 result = sp_win32_load_plugin(plugin_name, true);
     plugin_example_api *pe = (plugin_example_api*)sp_registry.get(PLUGIN_EXAMPLE_API_NAME);
     pe->my_print();
+
+    //Save the lastwrite time when we first load the plugin
+    WIN32_FIND_DATA find_data = {};
+    FindFirstFile(plugin_name,&find_data);
+    FILETIME old_file_time = find_data.ftLastWriteTime;
     
+     FILETIME creation_time = {};
+    FILETIME last_access_time = {};
+    FILETIME last_write_time = {};
+
+    int32 test =  GetFileTime(sp_registry.plugins[0].file_handle,&creation_time,&last_access_time,&last_write_time);
+    DWORD error = GetLastError();
+
+
+
+  
+
+
     //Second Plugin
     result = sp_win32_load_plugin(second_plugin, true);
 
@@ -40,7 +57,7 @@ int main()
     tp->my_print();
 
     //Remove First Plugin
-    sp_internal_api_registry_remove(PLUGIN_EXAMPLE_API_NAME);
+    //sp_internal_api_registry_remove(PLUGIN_EXAMPLE_API_NAME);
 
     //Fourth Plugin
     result = sp_win32_load_plugin(fourth_plugin, true);
@@ -48,10 +65,8 @@ int main()
     fp->my_print();
 
 
-    //Save the lastwrite time when we first load the plugin
-    WIN32_FIND_DATA find_data = {};
-    FindFirstFile(plugin_name,&find_data);
-    FILETIME old_file_time = find_data.ftLastWriteTime;
+
+   
 
     //my_print_func plugin_function = (my_print_func)GetProcAddress(plugin.handle,"my_print");
 
