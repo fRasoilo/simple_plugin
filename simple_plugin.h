@@ -144,7 +144,7 @@ void * sp_internal_api_registry_get(char* api_name);
 #define SP_REGISTER_API(reg,api) reg->add(#api,&api)
 
 //@FIXME: There was a weird bug when using realloc for the second time when this was set to 1.
-#define SP_REGISTRY_INITIAL_CAPACITY 10
+#define SP_REGISTRY_INITIAL_CAPACITY 1
 #define SP_REGISTRY_GROWTH_FACTOR    2
 
 internal APIRegistry sp_internal_registry_create()
@@ -184,7 +184,7 @@ void sp_internal_api_registry_add(char* api_name, void* api)
     
     if(reg->used < reg->capacity) 
     {
-        //@TODO: This seems not necessary....
+        //@TODO: This seems unnecessary....
         if((reg->next_hole_index - 1) < reg->used /*0 based indexes*/)
         {
             //scan to find the next position
@@ -260,10 +260,12 @@ SPlugin* sp_internal_api_registry_add_new_plugin()
         int32 old_capacity = reg->capacity;
         reg->capacity = old_capacity*SP_REGISTRY_GROWTH_FACTOR;
 
-        if(!realloc(reg->plugins,sizeof(SPlugin) * reg->capacity))
+        void* alloc_memory = realloc(reg->plugins,sizeof(SPlugin) * reg->capacity);
+        if(!alloc_memory)
         {
             SP_Assert(!"Could not reallocate block");
         }
+        reg->plugins = (SPlugin *)alloc_memory;
         size_t new_chunk_byte_size = sizeof(SPlugin) * (reg->capacity - old_capacity);
         memset(reg->plugins + old_capacity, 0, new_chunk_byte_size);
 
