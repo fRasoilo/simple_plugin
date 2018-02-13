@@ -87,7 +87,11 @@ struct SPlugin
 
 };
 
-
+bool32 sp_plugin_is_initialized(SPlugin* plugin)
+{
+    //Plugin should NOT be considered initialzed if any of these are Zero or null.
+    return( plugin->hash && plugin->api_hash && plugin->api);
+}
 
 
 //Hash Functions ----------------------------------------------------
@@ -121,24 +125,26 @@ struct APIRegistry
 
     SPlugin *plugins;
 
-    //Keep track of the current plugin being added.
+    //Some helpers to speed up lookup of plugins and "holes".
     SPlugin *curr;
+    int32 next_hole_index;
 
-    void (*add)(char* plugin_name);
+    void (*add)(char* plugin_name, void* api);
     void (*remove)(char* plugin_name);
     void* (*get)(char* api_name);
 
 };
 
 
-void sp_internal_api_registry_add(char* api_name);
+void sp_internal_api_registry_add(char* api_name, void* api);
 void sp_internal_api_registry_remove(char* plugin_name );
 void * sp_internal_api_registry_get(char* api_name);
 
 
-//#define SP_REGISTER_API(name, )
+#define SP_REGISTER_API(reg,api) reg->add(#api,&api)
 
-#define SP_REGISTRY_INITIAL_CAPACITY 1
+//@FIXME: There was a weird bug when using realloc for the second time when this was set to 1.
+#define SP_REGISTRY_INITIAL_CAPACITY 10
 #define SP_REGISTRY_GROWTH_FACTOR    2
 
 internal APIRegistry sp_internal_registry_create()
@@ -147,7 +153,9 @@ internal APIRegistry sp_internal_registry_create()
     reg.capacity        = SP_REGISTRY_INITIAL_CAPACITY;
     reg.used            = 0;
     reg.plugins         = (SPlugin*)malloc(sizeof(SPlugin) * reg.capacity);
+    memset(reg.plugins,0,sizeof(SPlugin) * reg.capacity); //set all plugin values to zero.
     reg.curr            = reg.plugins;
+    reg.next_hole_index = 0;
     reg.add             = sp_internal_api_registry_add;
     reg.remove          = sp_internal_api_registry_remove;
     reg.get             = sp_internal_api_registry_get;
@@ -162,33 +170,78 @@ sp_registry_get()
     return (&sp_registry);
 }
 
-void sp_internal_api_registry_add(char* api_name)
+void sp_internal_api_registry_add(char* api_name, void* api)
 {
     APIRegistry *reg = sp_registry_get();
-    SPlugin *plugin = reg->curr;
-    plugin->api_hash = SP_HASH(api_name);
+    SPlugin *plugin = nullptr;
 
-#ifdef _WIN32
-    plugin->api = GetProcAddress(plugin->handle,api_name);
-#else
-    #error No other OS defined
-#endif //_WIN32
+    plugin = reg->curr;
+    plugin->api_hash = SP_HASH(api_name);
+    plugin->api = api;
 
     reg->used++;
 
+    
     if(reg->used < reg->capacity) 
     {
-        reg->curr++;
+        //@TODO: This seems not necessary....
+        if((reg->next_hole_index - 1) < reg->used /*0 based indexes*/)
+        {
+            //scan to find the next position
+            uint32 count = reg->capacity;
+            for(uint32 index = 0; index < count; ++index )
+            {
+                plugin = &reg->plugins[index];
+                if(!sp_plugin_is_initialized(plugin))
+                {
+                    reg->curr = plugin;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            reg->curr++;
+        }
     }
 }
 
-void sp_internal_api_registry_remove(char* api_name )
+void sp_internal_api_registry_remove(char* api_name)
 {
+    APIRegistry *reg = sp_registry_get();
 
+    uint64 desired_api_hash = SP_HASH(api_name);
+    SPlugin *plugin = reg->plugins;
+    uint32 count   = reg->capacity; 
+    for(uint32 index = 0; index < count; ++index )
+    {
+        plugin = &reg->plugins[index];
+        if(desired_api_hash == plugin->api_hash)
+        {
+            *plugin = {}; //reset this slot
+            reg->curr = &reg->plugins[index];
+            break;
+        }
+    }
+    reg->used--;
 }
 
 void * sp_internal_api_registry_get(char* api_name)
 {
+    APIRegistry *reg = sp_registry_get();
+
+    uint64 desired_api_hash = SP_HASH(api_name);
+    SPlugin *plugin = reg->plugins;
+    uint32 count   = reg->capacity; 
+    for(uint32 index = 0; index < count; ++index )
+    {
+        plugin = &reg->plugins[index];
+        if(desired_api_hash == plugin->api_hash)
+        {
+            return(plugin->api);
+        }
+
+    }
     return(0);
 }
 
@@ -204,8 +257,16 @@ SPlugin* sp_internal_api_registry_add_new_plugin()
     }
     else
     {
-        reg->capacity = reg->capacity*SP_REGISTRY_GROWTH_FACTOR;
-        realloc(reg->plugins,sizeof(SPlugin) * reg->capacity);
+        int32 old_capacity = reg->capacity;
+        reg->capacity = old_capacity*SP_REGISTRY_GROWTH_FACTOR;
+
+        if(!realloc(reg->plugins,sizeof(SPlugin) * reg->capacity))
+        {
+            SP_Assert(!"Could not reallocate block");
+        }
+        size_t new_chunk_byte_size = sizeof(SPlugin) * (reg->capacity - old_capacity);
+        memset(reg->plugins + old_capacity, 0, new_chunk_byte_size);
+
         reg->curr = reg->plugins + reg->used;
 
         return(reg->curr);

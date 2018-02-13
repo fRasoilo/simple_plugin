@@ -6,9 +6,9 @@
 
 //This will be macroed into somethin like
 // SP_API_NAME(name)
-#define PLUGIN_EXAMPLE_API_NAME "plugin_example_api"
+#define THIRD_PLUGIN_API_NAME "third_plugin_api"
 
-struct plugin_example_api
+struct third_plugin_api
 {
     void (*my_print)();
 
