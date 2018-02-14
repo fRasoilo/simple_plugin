@@ -43,7 +43,7 @@ int main()
 
 
     //Second Plugin
-    result = sp_win32_load_plugin(second_plugin, true);
+    result = sp_win32_load_plugin(second_plugin, false);
 
    
 
@@ -52,7 +52,7 @@ int main()
     sp->my_print();
 
     //Third Plugin    
-    result = sp_win32_load_plugin(third_plugin, true);
+    result = sp_win32_load_plugin(third_plugin, false);
     third_plugin_api *tp = (third_plugin_api *)sp_registry.get(THIRD_PLUGIN_API_NAME);
     tp->my_print();
 
@@ -60,7 +60,7 @@ int main()
     //sp_internal_api_registry_remove(PLUGIN_EXAMPLE_API_NAME);
 
     //Fourth Plugin
-    result = sp_win32_load_plugin(fourth_plugin, true);
+    result = sp_win32_load_plugin(fourth_plugin, false);
     fourth_plugin_api *fp = (fourth_plugin_api *)sp_registry.get(FOURTH_PLUGIN_API_NAME);
     fp->my_print();
 
@@ -74,6 +74,8 @@ int main()
     while(1)
     {
         Sleep(1000);
+        sp_internal_api_registry_check_reloadable_plugins();
+#if 0
         int modified = 0;
         //Win32 specific check to see if the file has been modified
         find_data = {};
@@ -101,6 +103,7 @@ int main()
         {
             //break;
         }
+#endif
     }
 
     return 0;

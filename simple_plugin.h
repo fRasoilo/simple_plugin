@@ -118,7 +118,7 @@ unsigned long sp_internal_djb2_hash(char* str)
 //[INTERNAL]
 //API registry -- idea taken from "http://ourmachinery.com/post/little-machines-working-together-part-1/"
 
-
+#define SP_MAX_PLUGINS 100
 
 struct APIRegistry
 {
@@ -127,6 +127,8 @@ struct APIRegistry
 
     SPlugin *plugins;
 
+    SPlugin *reloadable_plugins[SP_MAX_PLUGINS];
+    uint16 reloadable_count;
     //Some helpers to speed up lookup of plugins and "holes".
     SPlugin *curr;
     int32 next_hole_index;
@@ -155,6 +157,8 @@ internal APIRegistry sp_internal_registry_create()
     reg.used            = 0;
     reg.plugins         = (SPlugin*)malloc(sizeof(SPlugin) * reg.capacity);
     memset(reg.plugins,0,sizeof(SPlugin) * reg.capacity); //set all plugin values to zero.
+    //reg.reloadable_indexes = 0;
+    reg.reloadable_count = 0;
     reg.curr            = reg.plugins;
     reg.next_hole_index = 0;
     reg.add             = sp_internal_api_registry_add;
@@ -274,6 +278,35 @@ SPlugin* sp_internal_api_registry_add_new_plugin()
         reg->curr = reg->plugins + reg->used;
 
         return(reg->curr);
+    }
+}
+
+bool32 sp_internal_plugin_modified(SPlugin *plugin)
+{
+    //@TODO: This is Win32 specific for now:
+    FILETIME last_write_time = {};
+    GetFileTime(plugin->file_handle,0,0,&last_write_time);
+    
+    bool32 modified = CompareFileTime(&plugin->last_write_time,&last_write_time);
+    if(modified)
+    {
+        plugin->last_write_time = last_write_time;
+    }
+
+    return(modified);
+}
+
+void sp_internal_api_registry_check_reloadable_plugins()
+{
+    APIRegistry *reg = sp_registry_get();
+    uint32 count = reg->reloadable_count;
+    for(uint32 index = 0; index < count; ++index)
+    {
+        if(sp_internal_plugin_modified(reg->reloadable_plugins[index]))
+        {
+            //@TODO: Reload the plugin here
+            printf("Plugin at index : %d has been modified!", index);
+        }
     }
 }
 //
@@ -410,11 +443,14 @@ bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
     
     if(reloadable) 
     {
-        
+        //Get the information we need to monitor the plugin.
         plugin->file_handle = CreateFile(plugin_name,0,0,0,OPEN_EXISTING,0,0);
         FILETIME last_write_time = {};
         GetFileTime(plugin->file_handle,0,0,&last_write_time);
-        plugin->last_write_time = last_write_time;        
+        plugin->last_write_time = last_write_time;
+
+        //Add the plugin to the list so the registry can monitor it.
+        reg->reloadable_plugins[reg->reloadable_count++] = plugin;
     }
 
     if(!plugin->library_handle)
@@ -451,9 +487,7 @@ bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
     {
         SP_Assert(!"Could not locate the plugin UNLOAD function!!!");
     }
-    unload_func unload_function = (unload_func)plugin->unload_func;
-    unload_function(&sp_registry);
-
+    
     //@TODO: Delete these calls to free and use an internal buffer.
     //free(temp_plugin_name);
     //free(load_function_name);
