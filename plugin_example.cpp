@@ -7,29 +7,30 @@
 extern "C"
 {
     
-    plugin_example_api api;
+    plugin_example_api api; // api instance
+    static plugin_state state; //plugin state (used to keep track of any plugin state and pass it around)
 
      __declspec(dllexport) void my_print()
     {
-        printf("!!!!!!!!!! \n");
+        printf("() \n");
     }
 
     //NECESSARY FUNCTION
-    __declspec(dllexport) void load_plugin_example(APIRegistry *reg)
+    __declspec(dllexport) void load_plugin_example(APIRegistry *reg, bool32 reload = false)
     {
-        printf("I have been loaded now I can do something!\n");
+        printf("I have been loaded now I can do something\n");
         
         //Initing the api -- need to do this as well... ahhhhhh
         api.my_print = my_print;
 
         //These will be macroed so we don't have to remeber to add manually, it will be something more like
         //REGISTER_API(api_name)
-        reg->add(PLUGIN_EXAMPLE_API_NAME,&api);
+        reg->add(PLUGIN_EXAMPLE_API_NAME,&api, reload);
         //SP_REGISTER_API(reg, plugin_example_api);
     }
 
     //NECESSARY FUNCTION
-    __declspec(dllexport) void unload_plugin_example(APIRegistry *reg)
+    __declspec(dllexport) void unload_plugin_example(APIRegistry *reg, bool32 reload)
     {
         printf("I'll clean my stuff before being unloaded!\n");
         
@@ -37,7 +38,7 @@ extern "C"
 
         //These will be macroed so we don't have to remeber to add manually, it will be something more like
         
-        reg->remove(PLUGIN_EXAMPLE_API_NAME);
+        reg->remove(PLUGIN_EXAMPLE_API_NAME, reload);
     }
    
 

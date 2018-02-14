@@ -72,6 +72,195 @@ typedef int32 bool32;
 #define InvalidCodePath SP_Assert(!"InvalidCodePath")
 #define InvalidDefaultCase default: {InvalidCodePath;} break
 
+// String utilities ----------------------------------------------------
+
+// [INTERNAL] Str Buffer
+#define STR_BUFFER_SIZE KiloBytes(1)
+struct StrBuffer
+{
+    char buffer[STR_BUFFER_SIZE];
+    uint32 used;
+};
+
+global_variable StrBuffer str_buffer_; //TODO: Is this necessary?
+//
+
+inline  int32
+sp_string_len(char* string)
+{
+    int32 count = 0;
+    while(*string++)
+    {
+        ++count;
+    }
+    return(count);
+}
+
+inline int32
+sp_string_size(char* string)
+{
+    int32 length = sp_string_len(string);
+
+    int32 size = length / sizeof(string[0]);
+    return(size);
+}
+
+internal void
+sp_buffer_append_string(StrBuffer* str_buffer, char* string)
+{
+    uint32 string_size = sp_string_size(string);
+    SP_Assert((string_size + str_buffer->used) < STR_BUFFER_SIZE); 
+    char* str_ptr = string;
+    for(int32 index = str_buffer->used ;*str_ptr; ++index)
+    {
+        str_buffer->buffer[index] = *str_ptr++;
+    }
+    str_buffer->used += string_size;
+
+    str_buffer->buffer[str_buffer->used] = '\0';    
+}
+
+internal void
+sp_buffer_append_char(StrBuffer* str_buffer, char c)
+{
+    uint32 char_size = sizeof(c);                             
+    SP_Assert((char_size + str_buffer->used) < STR_BUFFER_SIZE); 
+    str_buffer->buffer[str_buffer->used] = c;
+    str_buffer->used += char_size;
+    str_buffer->buffer[str_buffer->used] = '\0';    
+}
+
+internal void
+sp_buffer_append_newline(StrBuffer* str_buffer)
+{
+    uint32 string_size = sizeof('\n');                             
+    SP_Assert((string_size + str_buffer->used) < STR_BUFFER_SIZE); 
+    str_buffer->buffer[str_buffer->used] = '\n';
+    str_buffer->used += string_size;
+    str_buffer->buffer[str_buffer->used] = '\0';    
+}
+
+internal int32
+sp_internal_print_to_buffer(StrBuffer* str_buffer, char* fmt,va_list args)
+{
+    //NOTE: Becasue vsprintf wont respect if there is already something in the buffer, we use a temp_buffer so we dont override the original.
+    StrBuffer temp_buffer = {};
+    int32 result = vsprintf(temp_buffer.buffer, fmt,args);
+    sp_buffer_append_string(str_buffer, temp_buffer.buffer);
+    return(result);
+}
+
+internal int32
+sp_print_to_buffer(StrBuffer* str_buffer, char* fmt,...)
+{
+    va_list args;
+    va_start(args, fmt);
+    int32 result = sp_internal_print_to_buffer(str_buffer, fmt, args);
+    va_end(args);
+
+    return(result);
+}
+
+inline int32
+sp_string_size_strip_extension(char* string)
+{
+    char* c = string;
+    int32 len = 0;
+    while(*c++)
+    {
+        if(*c == '.')
+        {
+            break;
+        }
+        ++len;
+    }
+    int32 size = len / sizeof(string[0]);
+    return(size);
+}
+
+
+inline void
+sp_string_build_load_function_name(char* plugin_name, StrBuffer *buffer)
+{
+    char* c = plugin_name;
+    sp_print_to_buffer(buffer, "load_");
+
+    while(*c)
+    {
+        if(*c == '.')
+        {
+            sp_buffer_append_char(buffer,'\0');
+            break;
+        }
+        sp_buffer_append_char(buffer, *c);
+        c++;
+    }
+}
+
+inline void
+sp_string_build_unload_function_name(char* plugin_name, StrBuffer *buffer)
+{
+    char* c = plugin_name;
+    sp_print_to_buffer(buffer, "unload_");
+
+    while(*c)
+    {
+        if(*c == '.')
+        {
+            sp_buffer_append_char(buffer,'\0');
+            break;
+        }
+        sp_buffer_append_char(buffer, *c);
+        c++;
+    }
+}
+
+inline void
+sp_string_build_tmp_name(char* plugin_name, StrBuffer *buffer, int32 count = 0)
+{
+    
+    char *c = plugin_name;
+    
+    while(*c)
+    {
+        if(*c == '.')
+        {
+            sp_print_to_buffer(buffer, "_temp%d", count);
+        }
+        sp_buffer_append_char(buffer, *c);
+        ++c;
+    }
+}
+
+//Given a full path to the plugin, we extract the name
+inline void 
+sp_string_extract_plugin_name(char* plugin_full_path, char* extracted_name)
+{
+    char* c = plugin_full_path;
+    char* last_slash = c;
+    //Find the last slash
+    while(*c)
+    {
+        if(*c == '\\'){
+            last_slash = c;
+        }
+        ++c;
+    }
+    //go one after the last slash
+    c = ++last_slash;
+
+    //copy to extracted name
+    char* t = extracted_name;
+    while(*c)
+    {
+        *t++ = *c++;
+    }
+    *t = '\0';
+}
+
+
+// End String Utilities
+
 struct SPlugin
 {
     uint64 hash;
@@ -95,6 +284,8 @@ bool32 sp_plugin_is_initialized(SPlugin* plugin)
     return( plugin->hash && plugin->api_hash && plugin->api);
 }
 
+bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable);
+bool32 sp_win32_reload_plugin(SPlugin* plugin, int32 index);
 
 //Hash Functions ----------------------------------------------------
 //@TODO: Try out MurmurHash3
@@ -133,17 +324,23 @@ struct APIRegistry
     SPlugin *curr;
     int32 next_hole_index;
 
-    void (*add)(char* plugin_name, void* api);
-    void (*remove)(char* plugin_name);
+    void (*add)(char* plugin_name, void* api, bool32);
+    void (*remove)(char* plugin_name, bool32);
     void* (*get)(char* api_name);
+
 
 };
 
 
-void sp_internal_api_registry_add(char* api_name, void* api);
-void sp_internal_api_registry_remove(char* plugin_name );
-void * sp_internal_api_registry_get(char* api_name);
+//Typedefs of the plugin load and unload function signatures
+typedef void (*load_func)(APIRegistry *, bool32);
+typedef void (*unload_func)(APIRegistry *, bool32);
 
+
+void sp_internal_api_registry_add(char* api_name, void* api, bool32 reload);
+void sp_internal_api_registry_remove(char* plugin_name, bool32 reload );
+void * sp_internal_api_registry_get(char* api_name);
+void sp_internal_api_registry_transfer_state(void* old_state, void* new_sate);
 
 #define SP_REGISTER_API(reg,api) reg->add(#api,&api)
 
@@ -175,7 +372,7 @@ sp_registry_get()
     return (&sp_registry);
 }
 
-void sp_internal_api_registry_add(char* api_name, void* api)
+void sp_internal_api_registry_add(char* api_name, void* api, bool32 reload)
 {
     APIRegistry *reg = sp_registry_get();
     SPlugin *plugin = nullptr;
@@ -211,22 +408,70 @@ void sp_internal_api_registry_add(char* api_name, void* api)
     }
 }
 
-void sp_internal_api_registry_remove(char* api_name)
+void sp_internal_api_registry_remove_reloaded(uint64 hash)
+{
+    APIRegistry *reg = sp_registry_get();
+
+    //@NOTE: If we are removing a plugin that was reloaded we assume there is still another one here.
+
+    SPlugin *plugin = reg->plugins;
+    SPlugin *first_found  = nullptr;
+    SPlugin *second_found = nullptr;
+    
+        
+    uint32 count   = reg->capacity; 
+    for(uint32 index = 0; index < count; ++index )
+    {
+        plugin = &reg->plugins[index];
+        if(hash == plugin->api_hash)
+        {
+            if(!first_found)
+            {
+                first_found = plugin;
+                continue;
+            }
+            else
+            {
+                second_found = plugin;
+            }
+
+            plugin = first_found->reload_count < second_found->reload_count ? first_found : second_found;
+            *plugin = {}; //reset this slot
+            reg->curr = plugin;
+            break;
+        }
+    }
+
+}
+
+void sp_internal_api_registry_remove(char* api_name, bool32 reload)
 {
     //@TODO: Make sure to close the file_handle (win32) if this was a reloadable plugin.
     APIRegistry *reg = sp_registry_get();
 
     uint64 desired_api_hash = SP_HASH(api_name);
-    SPlugin *plugin = reg->plugins;
-    uint32 count   = reg->capacity; 
-    for(uint32 index = 0; index < count; ++index )
+
+    if(reload)
     {
-        plugin = &reg->plugins[index];
-        if(desired_api_hash == plugin->api_hash)
+        sp_internal_api_registry_remove_reloaded(desired_api_hash);
+    }
+    else
+    {
+        SPlugin *plugin = reg->plugins;
+        uint32 count   = reg->capacity; 
+        for(uint32 index = 0; index < count; ++index )
         {
-            *plugin = {}; //reset this slot
-            reg->curr = &reg->plugins[index];
-            break;
+            plugin = &reg->plugins[index];
+            if(desired_api_hash == plugin->api_hash)
+            {
+                //@TODO: Win32 only.
+                CloseHandle(plugin->file_handle);
+                FreeLibrary(plugin->library_handle);
+
+                *plugin = {}; //reset this slot
+                reg->curr = &reg->plugins[index];
+                break;
+            }
         }
     }
     reg->used--;
@@ -304,105 +549,24 @@ void sp_internal_api_registry_check_reloadable_plugins()
     {
         if(sp_internal_plugin_modified(reg->reloadable_plugins[index]))
         {
-            //@TODO: Reload the plugin here
-            printf("Plugin at index : %d has been modified!", index);
+            printf("Plugin at index : %d has been modified!\n", index);
+            SPlugin *plugin = reg->reloadable_plugins[index];
+            
+            //@TODO: Refactor this: WIN32 RELOAD PLUGIN
+            sp_win32_reload_plugin(plugin, index);
+            
+            //
+            //
         }
     }
 }
 //
 //End API Registry ----------------------------------------------------
 
-// String utilities ----------------------------------------------------
-inline  int32
-sp_string_len(char* string)
-{
-    int32 count = 0;
-    while(*string++)
-    {
-        ++count;
-    }
-    return(count);
-}
 
-inline int32
-sp_string_size(char* string)
-{
-    int32 length = sp_string_len(string);
-
-    int32 size = length / sizeof(string[0]);
-    return(size);
-}
-
-inline int32
-sp_string_size_strip_extension(char* string)
-{
-    char* c = string;
-    int32 len = 0;
-    while(*c++)
-    {
-        if(*c == '.')
-        {
-            break;
-        }
-        ++len;
-    }
-    int32 size = len / sizeof(string[0]);
-    return(size);
-}
-
-inline void
-sp_string_build_load_function_name(char* plugin_name, char* load_function_name)
-{
-    char* prefix = "load_";
-    char* c = load_function_name;
-    *c++ = prefix[0]; //'l'
-    *c++ = prefix[1]; //'o'
-    *c++ = prefix[2]; //'a'
-    *c++ = prefix[3]; //'d'
-    *c++ = prefix[4]; //'_'
-
-    char* t = plugin_name;
-    while(*t)
-    {
-        if(*t == '.')
-        {
-            *c = '\0';
-            break;
-        }
-        *c++ = *t++;
-    }
-}
-
-inline void
-sp_string_build_unload_function_name(char* plugin_name, char* load_function_name)
-{
-    char* prefix = "unload_";
-    char* c = load_function_name;
-    *c++ = prefix[0]; //'u'
-    *c++ = prefix[1]; //'n'
-    *c++ = prefix[2]; //'l'
-    *c++ = prefix[3]; //'o'
-    *c++ = prefix[4]; //'a'
-    *c++ = prefix[5]; //'d'
-    *c++ = prefix[6]; //'_'
-    
-    char* t = plugin_name;
-    while(*t)
-    {
-        if(*t == '.')
-        {
-            *c = '\0';
-            break;
-        }
-        *c++ = *t++;
-    }
-}
-// End String Utilities
 
 // Plugin Functions
 
-typedef void (*load_func)(APIRegistry *);
-typedef void (*unload_func)(APIRegistry *);
 
 bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
 {
@@ -410,37 +574,18 @@ bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
     SPlugin *plugin = sp_internal_api_registry_add_new_plugin(); 
     plugin->hash = SP_HASH(plugin_name);
     plugin->reloadable = reloadable;
+        
+    StrBuffer temp_plugin_name = {};
+    sp_string_build_tmp_name(plugin_name, &temp_plugin_name);
     
-    char* suffix = "_tmp";
-    size_t terminator_size = 1;
-    size_t size = sp_string_size(plugin_name) + sp_string_size(suffix) + terminator_size; 
-
-    char* temp_plugin_name = (char*)malloc(size); ////@TODO: Use an internal buffer for these.
-    char* t = temp_plugin_name;
-
-    char *c = plugin_name;
-    while(*c)
-    {
-        if(*c == '.')
-        {
-            *t++ = suffix[0];
-            *t++ = suffix[1];
-            *t++ = suffix[2];
-            *t++ = suffix[3];
-        }
-        *t++ = *c++;
-    }
-    *t = '\0';
-
-    if(!CopyFile(plugin_name,temp_plugin_name,0))
+    if(!CopyFile(plugin_name,temp_plugin_name.buffer,0))
     {
         return false;
         //@TODO: Log could not COPY plugin to temp_plugin.
     }
 
-    plugin->library_handle = LoadLibraryA(temp_plugin_name);
+    plugin->library_handle = LoadLibraryA(temp_plugin_name.buffer);
 
-    
     if(reloadable) 
     {
         //Get the information we need to monitor the plugin.
@@ -448,7 +593,6 @@ bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
         FILETIME last_write_time = {};
         GetFileTime(plugin->file_handle,0,0,&last_write_time);
         plugin->last_write_time = last_write_time;
-
         //Add the plugin to the list so the registry can monitor it.
         reg->reloadable_plugins[reg->reloadable_count++] = plugin;
     }
@@ -460,41 +604,98 @@ bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
     }
 
     //call the plugin load function
-
-    //check if the plugin_name has extension and if yes then strip it.
-    int32 strin_size_no_extension = sp_string_size_strip_extension(plugin_name);
-    char* prefix = "load_";
-    terminator_size = 1;
-    size = sp_string_size(prefix) + strin_size_no_extension + terminator_size; 
-
-    char* load_function_name = (char*)malloc(size); //@TODO: Use an internal buffer for these.
-    sp_string_build_load_function_name(plugin_name,load_function_name);
+    StrBuffer load_function_name = {};
+    sp_string_build_load_function_name(plugin_name,&load_function_name);
     
-    load_func load_function = (load_func)GetProcAddress(plugin->library_handle,load_function_name);
+    load_func load_function = (load_func)GetProcAddress(plugin->library_handle,load_function_name.buffer);
     if(!load_function)
     {
         SP_Assert(!"Could not locate the plugin load function!!!");
     }
-    load_function(&sp_registry);
+    load_function(&sp_registry, false);
 
     //finally let's save the address of the unload function
-    prefix = "unload_";
-    size = sp_string_size(prefix) + strin_size_no_extension + terminator_size; 
-    char* unload_function_name = (char*)malloc(size); //@TODO: Use an internal buffer for these.
-    sp_string_build_unload_function_name(plugin_name,unload_function_name);
-    plugin->unload_func = GetProcAddress(plugin->library_handle,unload_function_name);
+    StrBuffer unload_function_name = {};
+    sp_string_build_unload_function_name(plugin_name,&unload_function_name);
+    plugin->unload_func = GetProcAddress(plugin->library_handle,unload_function_name.buffer);
     if(!plugin->unload_func)
     {
         SP_Assert(!"Could not locate the plugin UNLOAD function!!!");
     }
     
-    //@TODO: Delete these calls to free and use an internal buffer.
-    //free(temp_plugin_name);
-    //free(load_function_name);
-    
     return true;
 }
 
+
+bool32 sp_win32_reload_plugin(SPlugin* plugin, int32 index)
+{
+    //Load the new plugin
+    char buffer[256];
+    char plugin_name[256];
+    StrBuffer new_plugin_name = {};
+    GetFinalPathNameByHandle(plugin->file_handle, buffer, 256, VOLUME_NAME_NONE) ; 
+    sp_string_extract_plugin_name(buffer, plugin_name);
+    sp_string_build_tmp_name(plugin_name, &new_plugin_name, plugin->reload_count + 1);
+
+    APIRegistry *reg = sp_registry_get();
+    SPlugin *new_plugin = sp_internal_api_registry_add_new_plugin(); 
+    new_plugin->hash = SP_HASH(plugin_name);
+    new_plugin->reloadable = 1;
+    new_plugin->reload_count = plugin->reload_count + 1;
+    new_plugin->file_handle = plugin->file_handle;
+    new_plugin->last_write_time = plugin->last_write_time;
+    
+    if(!CopyFile(plugin_name,new_plugin_name.buffer,0))
+    {
+        return false;
+        //@TODO: Log could not COPY plugin to temp_plugin.
+    }
+
+    new_plugin->library_handle = LoadLibraryA(new_plugin_name.buffer);
+    //@TODO: Get the new time to keep track.
+
+     if(!new_plugin->library_handle)
+    {
+        return false;
+        //@TODO: Log could not Load plugin
+    }
+    StrBuffer load_function_name = {};
+    sp_string_build_load_function_name(plugin_name,&load_function_name);
+    
+    load_func load_function = (load_func)GetProcAddress(new_plugin->library_handle,load_function_name.buffer);
+    if(!load_function)
+    {
+        SP_Assert(!"Could not locate the plugin load function!!!");
+    }
+    load_function(reg, true);
+    
+    //finally let's save the address of the unload function
+    StrBuffer unload_function_name = {};
+    sp_string_build_unload_function_name(plugin_name,&unload_function_name);
+    new_plugin->unload_func = GetProcAddress(new_plugin->library_handle,unload_function_name.buffer);
+    if(!new_plugin->unload_func)
+    {
+        SP_Assert(!"Could not locate the plugin UNLOAD function!!!");
+    }
+
+    //@TODO: If I want to implement some sort of state transfer between the dlls it goes here.
+    //       In here both plugins are loaded at the same time
+    //
+    //
+
+    HMODULE old_plugin_handle = plugin->library_handle;
+
+    unload_func unload_function = (unload_func)plugin->unload_func;
+    unload_function(reg, true);
+
+    FreeLibrary(old_plugin_handle);
+
+    reg->reloadable_plugins[index] = new_plugin;
+
+
+    
+    return true;
+}
 //End Plugin Functions
 
 

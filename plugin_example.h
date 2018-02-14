@@ -13,3 +13,10 @@ struct plugin_example_api
     void (*my_print)();
 
 };
+
+//Keep any global or heap allocated state here, this can be used if we want to transfer
+//state between two plugins of the same kind. For example in hot reloading.
+struct plugin_state
+{
+
+};

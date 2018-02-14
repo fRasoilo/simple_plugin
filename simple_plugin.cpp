@@ -25,6 +25,7 @@ int main()
     plugin_example_api *pe = (plugin_example_api*)sp_registry.get(PLUGIN_EXAMPLE_API_NAME);
     pe->my_print();
 
+#if 0
     //Save the lastwrite time when we first load the plugin
     WIN32_FIND_DATA find_data = {};
     FindFirstFile(plugin_name,&find_data);
@@ -37,8 +38,14 @@ int main()
     int32 test =  GetFileTime(sp_registry.plugins[0].file_handle,&creation_time,&last_access_time,&last_write_time);
     DWORD error = GetLastError();
 
+    char buffer[256];
+    GetFinalPathNameByHandle(sp_registry.plugins[0].file_handle, buffer, 256, VOLUME_NAME_NONE) ;
 
+    char extracted[100];
+    sp_string_extract_plugin_name(buffer, extracted);
 
+    //MoveFile("plugin_example_tmp.dll","plugin_example_about_unload.dll");
+    //pe->my_print();
   
 
 
@@ -63,7 +70,7 @@ int main()
     result = sp_win32_load_plugin(fourth_plugin, false);
     fourth_plugin_api *fp = (fourth_plugin_api *)sp_registry.get(FOURTH_PLUGIN_API_NAME);
     fp->my_print();
-
+#endif
 
 
    
@@ -73,8 +80,11 @@ int main()
     //Loop forever
     while(1)
     {
-        Sleep(1000);
+        //Sleep(10);
         sp_internal_api_registry_check_reloadable_plugins();
+        pe = (plugin_example_api*)sp_registry.get(PLUGIN_EXAMPLE_API_NAME);
+        pe->my_print();
+
 #if 0
         int modified = 0;
         //Win32 specific check to see if the file has been modified
