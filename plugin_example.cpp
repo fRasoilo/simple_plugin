@@ -1,27 +1,36 @@
-//Example of a plugin
+//------------------------------------------------------------------------------------------------------------
+//This is an example of a plugin that can be used with the simple_plugin library.
+//You can use this example a guide on how to write plugins or as a skeleton to be modified to your needs
+//-------------------------------------------------------------------------------------------------------------
 
-#include <stdio.h>
-#include "simple_plugin.h"
+//-------------------------------------------------------------------------------------------------------------
+//This is the c/cpp file for the plugin where the implementation lives:
+//
+// * Include the plugin header
+//
+//
+//-------------------------------------------------------------------------------------------------------------
+
+//Inlude the header for the plugin
 #include "plugin_example.h"
 
-extern "C"
-{
-    
-    //plugin_example_api plugin_example_api; // api instance
+//Include anything else you need for the plugin
+#include <stdio.h>
+
     static plugin_state state; //plugin state (used to keep track of any plugin state and pass it around)
 
-     __declspec(dllexport) void my_print()
+    void my_print()
     {
-        printf("() \n");
+        printf("@@@@@@@  #######  @@@@@@@ \n");
     }
 
-    __declspec(dllexport) void my_add_and_print(int a, int b)
+    void my_add_and_print(int a, int b)
     {
         printf("%d + %d  = %d \n", a,b, a + b);
     }
 
     //NECESSARY FUNCTION
-    __declspec(dllexport) void load_plugin_example(APIRegistry *reg, bool32 reload = false)
+    SP_EXPORT void load_plugin_example(APIRegistry *reg, bool32 reload = false)
     {
         printf("I have been loaded now I can do something\n");
         
@@ -38,7 +47,7 @@ extern "C"
     }
 
     //NECESSARY FUNCTION
-    __declspec(dllexport) void unload_plugin_example(APIRegistry *reg, bool32 reload)
+    SP_EXPORT void unload_plugin_example(APIRegistry *reg, bool32 reload)
     {
         printf("I'll clean my stuff before being unloaded!\n");
         

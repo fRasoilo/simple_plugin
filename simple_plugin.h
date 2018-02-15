@@ -4,10 +4,14 @@
 //Simple Plugin --------------
 
 //=============================================================================
-// Summary :
+// Summary : 
 //
+//  simple_plugin is a small library written in C++ that provides an easy way to
+//  add plugins to an application. simple_plugin also support Hot-Reloading of plugins
+//  This means you can have faster iteration times when working: make a change, compile,
+//  simple_plugin hot reloads any plugin you have set to be reloadable instantly.
 //
-//
+//  It is a single file header that should be very easy to drop-in and start using in any pre-existing project.
 //=============================================================================
 // Revision History :
 //
@@ -348,6 +352,18 @@ void sp_internal_api_registry_transfer_state(void* old_state, void* new_sate);
 #define SP_REGISTER_API(registry,api_struct_name,reload) reg->add(#api_struct_name,&api_struct_name,reload)
 
 #define SP_API_FUNCTION(return_type, function_name, params) return_type (*function_name) params 
+
+//SP_EXPORT
+#ifdef _WIN32
+    #ifdef __cplusplus
+        #define SP_EXPORT extern "C" __declspec(dllexport)
+    #else
+        #define SP_EXPORT __declspec(dllexport)
+    #endif //__cpluscplus
+#else
+    //@TODO: Other OS
+    #error No other OS defined
+#endif //_WIN32
 
 #define SP_REGISTRY_INITIAL_CAPACITY 10
 #define SP_REGISTRY_GROWTH_FACTOR    2
