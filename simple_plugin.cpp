@@ -24,6 +24,7 @@ int main()
     bool32 result = sp_win32_load_plugin(plugin_name, true);
     plugin_example_api *pe = (plugin_example_api*)sp_registry.get(PLUGIN_EXAMPLE_API_NAME);
     pe->my_print();
+    pe->my_add_and_print(2,3);
 
 #if 0
     //Save the lastwrite time when we first load the plugin
@@ -80,7 +81,7 @@ int main()
     //Loop forever
     while(1)
     {
-        //Sleep(10);
+        Sleep(1000);
         sp_internal_api_registry_check_reloadable_plugins();
         pe = (plugin_example_api*)sp_registry.get(PLUGIN_EXAMPLE_API_NAME);
         pe->my_print();

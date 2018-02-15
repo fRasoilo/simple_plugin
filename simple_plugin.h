@@ -342,7 +342,12 @@ void sp_internal_api_registry_remove(char* plugin_name, bool32 reload );
 void * sp_internal_api_registry_get(char* api_name);
 void sp_internal_api_registry_transfer_state(void* old_state, void* new_sate);
 
-#define SP_REGISTER_API(reg,api) reg->add(#api,&api)
+//@NOTE: Helper macros to be used in the creation of plugins
+#define SP_CREATE_API(api_struct_name) internal api_struct_name api_struct_name = {}
+#define SP_INIT_API_FUNC_PTR(api_struct_name,function_name) api_struct_name.function_name = function_name 
+#define SP_REGISTER_API(registry,api_struct_name,reload) reg->add(#api_struct_name,&api_struct_name,reload)
+
+#define SP_API_FUNCTION(return_type, function_name, params) return_type (*function_name) params 
 
 #define SP_REGISTRY_INITIAL_CAPACITY 10
 #define SP_REGISTRY_GROWTH_FACTOR    2

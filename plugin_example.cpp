@@ -7,7 +7,7 @@
 extern "C"
 {
     
-    plugin_example_api api; // api instance
+    //plugin_example_api plugin_example_api; // api instance
     static plugin_state state; //plugin state (used to keep track of any plugin state and pass it around)
 
      __declspec(dllexport) void my_print()
@@ -15,18 +15,26 @@ extern "C"
         printf("() \n");
     }
 
+    __declspec(dllexport) void my_add_and_print(int a, int b)
+    {
+        printf("%d + %d  = %d \n", a,b, a + b);
+    }
+
     //NECESSARY FUNCTION
     __declspec(dllexport) void load_plugin_example(APIRegistry *reg, bool32 reload = false)
     {
         printf("I have been loaded now I can do something\n");
         
-        //Initing the api -- need to do this as well... ahhhhhh
-        api.my_print = my_print;
+        //Initing the api
+        SP_CREATE_API(plugin_example_api);
 
+        //plugin_example_api.my_print = my_print;
+        SP_INIT_API_FUNC_PTR(plugin_example_api,my_print);
+        SP_INIT_API_FUNC_PTR(plugin_example_api,my_add_and_print);
+        
         //These will be macroed so we don't have to remeber to add manually, it will be something more like
-        //REGISTER_API(api_name)
-        reg->add(PLUGIN_EXAMPLE_API_NAME,&api, reload);
-        //SP_REGISTER_API(reg, plugin_example_api);
+        SP_REGISTER_API(reg, plugin_example_api, reload);
+        //reg->add(PLUGIN_EXAMPLE_API_NAME, &api)
     }
 
     //NECESSARY FUNCTION

@@ -1,3 +1,5 @@
+#include "simple_plugin.h"
+
 //This is the header file for the plugin here you specify the following:
 
 //The Plugin Api Name - this is the name that will be quieried in client code, when a client app wants to use the api
@@ -10,8 +12,9 @@
 
 struct plugin_example_api
 {
-    void (*my_print)();
-
+    //void (*my_print)();
+    SP_API_FUNCTION(void, my_print, () );
+    SP_API_FUNCTION(void, my_add_and_print, (int,int) );
 };
 
 //Keep any global or heap allocated state here, this can be used if we want to transfer
