@@ -208,7 +208,7 @@ void my_add_and_print(int a, int b)
 //3)Register API - SP_REGISTER_API  
 //
 //You can do any other initilization or prep code you feel like in this function.
-SP_EXPORT void load_plugin_sample(APIRegistry *reg, bool32 reload = false)
+SP_EXPORT void load_sample_plugin(APIRegistry *reg, bool32 reload = false)
 {
     printf("I have been loaded now I can do something\n");
 
@@ -236,7 +236,7 @@ SP_EXPORT void load_plugin_sample(APIRegistry *reg, bool32 reload = false)
 //1)Remove from the client code - SP_REMOVE_API
 //
 //You can do any other clean-up in this function.
-SP_EXPORT void unload_plugin_sample(APIRegistry *reg, bool32 reload)
+SP_EXPORT void unload_sample_plugin(APIRegistry *reg, bool32 reload)
 {
     printf("I'll clean my stuff before being unloaded!\n");
     
