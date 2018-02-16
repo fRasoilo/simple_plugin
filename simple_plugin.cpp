@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-
+#define SIMPLE_PLUGIN_IMPLEMENTATION
 #include "simple_plugin.h"
 
 
@@ -23,11 +23,18 @@ int main()
     //We don't need to keep track of the plugin.
     bool32 reloadable = true;
     sp_load_plugin(sample_plugin, reloadable);
+
+    //We look at the plugin header to see the type of the api, the convention is that the 
+    //api struct will be plugin_name_api, so in this case sample_plugin_api.
+    //That way we can cast the void* that sp_get_api returns to us and store it in the appropriate
+    //type.
     sample_plugin_api *sample_api = (sample_plugin_api*)sp_get_api(SAMPLE_PLUGIN_API_NAME);
     sample_api->my_print();
     sample_api->my_add_and_print(2,3);
 
     //If we want we can also keep a pointer to the plugin. The library will still keep track of it internally, but we can access the plugin directly.
+    //Again, in this case we went to the second_plugin header to see what kind of type the api struct it provides is.
+    //the convention is plugin_name_api so in this case we get second_plugin_api.
     SPlugin *plugin = sp_load_plugin(second_plugin, !reloadable);
     second_plugin_api *second_api = (second_plugin_api*)sp_get_api(plugin);
     second_api->my_second_print();

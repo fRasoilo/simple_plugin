@@ -45,14 +45,6 @@
 //===============================================================================  
 
 
-
-
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-#include <stdlib.h> //malloc, realloc
-#endif //_WIN32
-
 // [INTERNAL] Types --------------
 #include <stdint.h>
 //Unsigned
@@ -80,10 +72,138 @@ typedef int32 bool32;
 #define InvalidCodePath SP_Assert(!"InvalidCodePath")
 #define InvalidDefaultCase default: {InvalidCodePath;} break
 
+//@NOTE: Helper macros to be used in the creation of plugins
+#define SP_CREATE_API(api_struct_name) internal api_struct_name api_struct_name = {}
+#define SP_INIT_API_FUNC_PTR(api_struct_name,function_name) api_struct_name.function_name = function_name 
+#define SP_REGISTER_API(reg,api_struct_name,reload) reg->add(#api_struct_name,&api_struct_name,reload, reg)
+#define SP_REMOVE_API(reg, api_struct_name, reload) reg->remove(#api_struct_name, reload,reg);
+#define SP_API_FUNCTION(return_type, function_name, params) return_type (*function_name) params 
+
+//SP_EXPORT
+#ifdef _WIN32
+    #ifdef __cplusplus
+        #define SP_EXPORT extern "C" __declspec(dllexport)
+    #else
+        #define SP_EXPORT __declspec(dllexport)
+    #endif //__cpluscplus
+#else
+    //@TODO: Other OS
+    #error No other OS defined
+#endif //_WIN32
+
+
+
+//[INTERNAL] -- This is not really part of the API but it is defined here so that the plugins can see it without having to drag int
+//              the rest of the library.
+//API registry -- idea taken from "http://ourmachinery.com/post/little-machines-working-together-part-1/"
+
+//CAN BE USER DEFINED
+#define SP_REGISTRY_INITIAL_CAPACITY 10
+#define SP_REGISTRY_GROWTH_FACTOR    2
+#define SP_MAX_PLUGINS 100
+
+//forward declare
+struct SPlugin;
+
+struct APIRegistry
+{
+    int32 capacity;
+    int32 used;
+
+    SPlugin *plugins;
+
+    SPlugin *reloadable_plugins[SP_MAX_PLUGINS];
+    uint16 reloadable_count;
+    //Some helpers to speed up lookup of plugins and "holes".
+    SPlugin *curr;
+    int32 next_hole_index;
+
+    void (*add)(char* plugin_name, void* api, bool32 reload, APIRegistry* registry);
+    void (*remove)(char* plugin_name, bool32 reload, APIRegistry *registry);
+    void* (*get)(uint64 api_hash, APIRegistry *registry);
+
+
+};
+
+//=============================================================================
+// API - [Loading a plugin]
+//
+//=============================================================================
+
+//
+SPlugin * sp_load_plugin(APIRegistry *registry, char* plugin_name, bool32 reloadable);
+
+//
+SPlugin * sp_load_plugin(char* plugin_name, bool32 reloadable);
+
+
+//=============================================================================
+// API - [Unloading a plugin]
+//
+//=============================================================================
+
+//
+void sp_unload_plugin(APIRegistry * registry,char* api_name);
+
+//
+void sp_unload_plugin(APIRegistry * registry,SPlugin *plugin);
+
+//
+void sp_unload_plugin(char* api_name);
+
+//
+void sp_unload_plugin(SPlugin *plugin);
+
+//
+//=============================================================================
+// API - [Querying for an API / Getting an API]
+//
+//=============================================================================
+
+//
+void * sp_get_api(SPlugin *plugin);
+
+//
+void * sp_get_api(char *api_name);
+
+//
+void * sp_get_api(APIRegistry *registry,SPlugin *plugin);
+
+//
+void * sp_get_api(APIRegistry *registry,char *api_name);
+
+
+//=============================================================================
+// API - [Hot Reloading Plugins]
+//
+//=============================================================================
+
+//
+bool32 sp_update();
+
+//
+bool32 sp_update(APIRegistry *registry);
+
+//=============================================================================
+// API - [Creating another API registry]
+//
+//=============================================================================
+
+//
+APIRegistry sp_registry_create(uint32 capacity);
+
+
+
 //===============================================================================  
 // [IMPLEMENTATION]
 //=============================================================================== 
+#ifdef SIMPLE_PLUGIN_IMPLEMENTATION
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#include <stdlib.h> //malloc, realloc
+#endif //_WIN32
 
 #include <stdio.h>
 
@@ -318,30 +438,7 @@ unsigned long sp_internal_djb2_hash(char* str)
 
 
 
-//[INTERNAL]
-//API registry -- idea taken from "http://ourmachinery.com/post/little-machines-working-together-part-1/"
 
-#define SP_MAX_PLUGINS 100
-
-struct APIRegistry
-{
-    int32 capacity;
-    int32 used;
-
-    SPlugin *plugins;
-
-    SPlugin *reloadable_plugins[SP_MAX_PLUGINS];
-    uint16 reloadable_count;
-    //Some helpers to speed up lookup of plugins and "holes".
-    SPlugin *curr;
-    int32 next_hole_index;
-
-    void (*add)(char* plugin_name, void* api, bool32 reload, APIRegistry* registry);
-    void (*remove)(char* plugin_name, bool32 reload, APIRegistry *registry);
-    void* (*get)(uint64 api_hash, APIRegistry *registry);
-
-
-};
 
 
 //Typedefs of the plugin load and unload function signatures
@@ -354,29 +451,7 @@ void sp_internal_api_registry_remove(char* plugin_name, bool32 reload, APIRegist
 void * sp_internal_api_registry_get(uint64 api_hash, APIRegistry *registry);
 void sp_internal_api_registry_transfer_state(void* old_state, void* new_sate);
 
-//@NOTE: Helper macros to be used in the creation of plugins
-#define SP_CREATE_API(api_struct_name) internal api_struct_name api_struct_name = {}
-#define SP_INIT_API_FUNC_PTR(api_struct_name,function_name) api_struct_name.function_name = function_name 
-#define SP_REGISTER_API(reg,api_struct_name,reload) reg->add(#api_struct_name,&api_struct_name,reload, reg)
-#define SP_REMOVE_API(reg, api_struct_name, reload) reg->remove(#api_struct_name, reload,reg);
 
-
-#define SP_API_FUNCTION(return_type, function_name, params) return_type (*function_name) params 
-
-//SP_EXPORT
-#ifdef _WIN32
-    #ifdef __cplusplus
-        #define SP_EXPORT extern "C" __declspec(dllexport)
-    #else
-        #define SP_EXPORT __declspec(dllexport)
-    #endif //__cpluscplus
-#else
-    //@TODO: Other OS
-    #error No other OS defined
-#endif //_WIN32
-
-#define SP_REGISTRY_INITIAL_CAPACITY 10
-#define SP_REGISTRY_GROWTH_FACTOR    2
 
 internal APIRegistry sp_internal_registry_create()
 {
@@ -932,6 +1007,7 @@ void sp_unload_plugin(SPlugin *plugin)
 
 //End Plugin Functions
 
+#endif //SIMPLE_PLUGIN_IMPLEMENTATION
 
 
 /*
