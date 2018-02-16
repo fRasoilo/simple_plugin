@@ -499,6 +499,18 @@ void sp_internal_api_registry_remove_reloaded(uint64 hash, APIRegistry* registry
 
 }
 
+void sp_internal_plugin_cleanup(SPlugin *plugin)
+{
+    #ifdef _WIN32
+        CloseHandle(plugin->file_handle);
+        FreeLibrary(plugin->library_handle);
+    #else
+        //@TODO: Do other OS
+        #error NO OTHER OS DEFINED
+
+    #endif //_WIN32
+}
+
 void sp_internal_api_registry_remove(char* api_name, bool32 reload, APIRegistry *registry)
 {
     //@TODO: Make sure to close the file_handle (win32) if this was a reloadable plugin.
@@ -523,11 +535,6 @@ void sp_internal_api_registry_remove(char* api_name, bool32 reload, APIRegistry 
             plugin = &reg->plugins[index];
             if(desired_api_hash == plugin->api_hash)
             {
-                //@TODO: Win32 only.
-                CloseHandle(plugin->file_handle);
-                FreeLibrary(plugin->library_handle);
-
-                *plugin = {}; //reset this slot
                 reg->curr = &reg->plugins[index];
                 break;
             }
@@ -892,6 +899,8 @@ void sp_unload_plugin(APIRegistry * registry,char* api_name)
         {
             unload_func unload_function = (unload_func)plugin->unload_func;
             unload_function(reg, false);
+            sp_internal_plugin_cleanup(plugin);
+            *plugin = {}; //reset this slot
             break;
         }
     }
@@ -901,6 +910,8 @@ void sp_unload_plugin(APIRegistry * registry,SPlugin *plugin)
 {
     unload_func unload_function = (unload_func)plugin->unload_func;
     unload_function(registry, false);
+    sp_internal_plugin_cleanup(plugin);
+    *plugin = {}; //reset this slot
 }
 
 void sp_unload_plugin(char* api_name)
@@ -910,9 +921,7 @@ void sp_unload_plugin(char* api_name)
 
 void sp_unload_plugin(SPlugin *plugin)
 {
-    APIRegistry *reg = sp_internal_registry_get();
-    unload_func unload_function = (unload_func)plugin->unload_func;
-    unload_function(reg, false);
+    sp_unload_plugin(nullptr, plugin);
 }
 
 
