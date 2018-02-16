@@ -618,9 +618,8 @@ SPlugin* sp_internal_api_registry_add_new_plugin(APIRegistry *registry)
     }
 }
 
-bool32 sp_internal_plugin_modified(SPlugin *plugin)
+bool32 sp_internal_win32_plugin_modified(SPlugin *plugin)
 {
-    //@TODO: This is Win32 specific for now:
     FILETIME last_write_time = {};
     GetFileTime(plugin->file_handle,0,0,&last_write_time);
     
@@ -633,12 +632,39 @@ bool32 sp_internal_plugin_modified(SPlugin *plugin)
     return(modified);
 }
 
+bool32 sp_internal_plugin_modified(SPlugin *plugin)
+{
+    
+    #ifdef _WIN32
+        bool32 result = sp_internal_win32_plugin_modified(plugin);
+    #else   
+        //@TODO: Other OS
+        #error NO OTHER OS DEFINED    
+    #endif //_WIN32
+
+    return(result);
+}
+
 //Forward declare.
 bool32 sp_internal_win32_reload_plugin(SPlugin* plugin, int32 index, APIRegistry *registry);
 
 
-void sp_internal_api_registry_check_reloadable_plugins(APIRegistry *registry)
+bool32 sp_internal_reload_plugin(SPlugin* plugin, int32 index, APIRegistry *registry)
 {
+     #ifdef _WIN32
+        bool32 result = sp_internal_win32_reload_plugin(plugin, index, registry);
+    #else   
+        //@TODO: Other OS
+        #error NO OTHER OS DEFINED    
+    #endif //_WIN32
+
+    return(result);
+}
+
+bool32 sp_internal_api_registry_check_reloadable_plugins(APIRegistry *registry)
+{
+    bool32 result = false;
+
     APIRegistry *reg = registry;
     if(!reg)
     {
@@ -652,15 +678,32 @@ void sp_internal_api_registry_check_reloadable_plugins(APIRegistry *registry)
         {
             printf("Plugin at index : %d has been modified!\n", index);
             SPlugin *plugin = reg->reloadable_plugins[index];
+    
+            result = sp_internal_reload_plugin(plugin, index, reg);
             
-            //@TODO: Refactor this: WIN32 RELOAD PLUGIN
-            sp_internal_win32_reload_plugin(plugin, index, reg);
-            
-            //
-            //
         }
     }
+    return(result);
 }
+
+
+bool32 sp_update(APIRegistry *registry)
+{
+    APIRegistry *reg = registry;
+    if(!reg)
+    {
+        reg = sp_internal_registry_get();
+    }
+    bool32 result = sp_internal_api_registry_check_reloadable_plugins(reg);
+
+    return(result);
+}
+
+bool32 sp_update()
+{
+    return(sp_update(nullptr));
+}
+
 
 //
 //End API Registry ----------------------------------------------------

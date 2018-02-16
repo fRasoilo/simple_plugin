@@ -75,7 +75,7 @@ int main()
     {
         Sleep(100);
         //Run the registry update, it will check all reloadable plugins for changes.
-        //sp_update(); 
+        sp_update(); 
         //We need to get the api again in case the plugin has been modified
         sample_plugin_api *sample_api = (sample_plugin_api*)sp_get_api(SAMPLE_PLUGIN_API_NAME);
         sample_api->my_print();
