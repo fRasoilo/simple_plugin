@@ -102,7 +102,7 @@
 //
 //     This macro expands to the following :
 //
-//     SP_REGISTER_API(registry,api_struct_name,reload) reg->add(#api_struct_name,&api_struct_name,reload)
+//     SP_REGISTER_API(registry,api_struct_name,reload) reg->add(#api_struct_name,&api_struct_name,reload, reg)
 //
 //     As you can see we are just calling the APIRegistry add method, passing in the api_struct_name as a string,
 //     (this is hashed and used internally to id the API), the address of the API structure instance we created and the 
@@ -143,7 +143,7 @@
 //
 //       The macro expands to the following:
 //
-//       SP_REMOVE_API(registry, api_struct_name, reload) reg->remove(#api_struct_name, reload);
+//       SP_REMOVE_API(registry, api_struct_name, reload) reg->remove(#api_struct_name, reload, reg);
 //       
 //       As you can see all we are doing is calling the remove method of the APIRegistry.
 //
@@ -228,7 +228,7 @@ SP_EXPORT void load_plugin_sample(APIRegistry *reg, bool32 reload = false)
     
     //Registering the API
     SP_REGISTER_API(reg, sample_plugin_api, reload);
-    //reg->add("sample_plugin_api", &api, reload);
+    //reg->add("sample_plugin_api", &api, reload, reg);
 }
 
 //---
@@ -242,9 +242,9 @@ SP_EXPORT void unload_plugin_sample(APIRegistry *reg, bool32 reload)
     
     //Any clean up or any other stuff you want to do here...
 
-    SP_REMOVE_API(registry, sample_plugin_api, reload);
-    //reg->remove(PLUGIN_EXAMPLE_API_NAME, reload);
-    //reg->remove("sample_plugin_api", reload);
+    SP_REMOVE_API(reg, sample_plugin_api, reload);
+    //reg->remove(PLUGIN_EXAMPLE_API_NAME, reload,reg);
+    //reg->remove("sample_plugin_api", reload, reg);
 }
 
 

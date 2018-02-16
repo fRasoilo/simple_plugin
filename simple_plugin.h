@@ -357,7 +357,7 @@ void sp_internal_api_registry_transfer_state(void* old_state, void* new_sate);
 //@NOTE: Helper macros to be used in the creation of plugins
 #define SP_CREATE_API(api_struct_name) internal api_struct_name api_struct_name = {}
 #define SP_INIT_API_FUNC_PTR(api_struct_name,function_name) api_struct_name.function_name = function_name 
-#define SP_REGISTER_API(reg,api_struct_name,reload) reg->add(#api_struct_name,&api_struct_name,reload)
+#define SP_REGISTER_API(reg,api_struct_name,reload) reg->add(#api_struct_name,&api_struct_name,reload, reg)
 #define SP_REMOVE_API(reg, api_struct_name, reload) reg->remove(#api_struct_name, reload,reg);
 
 

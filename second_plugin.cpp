@@ -22,9 +22,7 @@ SP_EXPORT void load_second_plugin(APIRegistry *reg, bool32 reload = false)
 SP_EXPORT void unload_second_plugin(APIRegistry *reg, bool32 reload)
 {
     printf("I'll clean my stuff before being unloaded!\n");
-    SP_REMOVE_API(registry, secpm_plugin_api, reload);
-    //reg->remove(PLUGIN_EXAMPLE_API_NAME, reload);
-    //reg->remove("sample_plugin_api", reload);
+    SP_REMOVE_API(reg, secpm_plugin_api, reload);
 }
 
 
