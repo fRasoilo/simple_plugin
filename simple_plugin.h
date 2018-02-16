@@ -332,9 +332,9 @@ struct APIRegistry
     SPlugin *curr;
     int32 next_hole_index;
 
-    void (*add)(char* plugin_name, void* api, bool32);
-    void (*remove)(char* plugin_name, bool32);
-    void* (*get)(char* api_name);
+    void (*add)(char* plugin_name, void* api, bool32 reload, APIRegistry* registry);
+    void (*remove)(char* plugin_name, bool32 reload, APIRegistry *registry);
+    void* (*get)(uint64 api_hash, APIRegistry *registry);
 
 
 };
@@ -345,7 +345,7 @@ typedef void (*load_func)(APIRegistry *, bool32);
 typedef void (*unload_func)(APIRegistry *, bool32);
 
 
-void sp_internal_api_registry_add(char* api_name, void* api, bool32 reload);
+void sp_internal_api_registry_add(char* api_name, void* api, bool32 reload, APIRegistry *registry);
 void sp_internal_api_registry_remove(char* plugin_name, bool32 reload, APIRegistry *registry);
 void * sp_internal_api_registry_get(uint64 api_hash, APIRegistry *registry);
 void sp_internal_api_registry_transfer_state(void* old_state, void* new_sate);
@@ -393,15 +393,36 @@ internal APIRegistry sp_internal_registry_create()
 
 global_variable APIRegistry sp_registry = sp_internal_registry_create();
 
+APIRegistry sp_registry_create(uint32 capacity)
+{
+    APIRegistry reg = {};
+    reg.capacity        = capacity;
+    reg.used            = 0;
+    reg.plugins         = (SPlugin*)malloc(sizeof(SPlugin) * reg.capacity);
+    memset(reg.plugins,0,sizeof(SPlugin) * reg.capacity); //set all plugin values to zero.
+    //reg.reloadable_indexes = 0;
+    reg.reloadable_count = 0;
+    reg.curr            = reg.plugins;
+    reg.next_hole_index = 0;
+    reg.add             = sp_internal_api_registry_add;
+    reg.remove          = sp_internal_api_registry_remove;
+    reg.get             = sp_internal_api_registry_get;
+    return(reg);
+}
+
 internal APIRegistry* 
 sp_internal_registry_get()
 {
     return (&sp_registry);
 }
 
-void sp_internal_api_registry_add(char* api_name, void* api, bool32 reload)
+void sp_internal_api_registry_add(char* api_name, void* api, bool32 reload, APIRegistry *registry)
 {
-    APIRegistry *reg = sp_internal_registry_get();
+    APIRegistry *reg = registry;
+    if(!reg)
+    {
+        reg = sp_internal_registry_get();
+    }
     SPlugin *plugin = nullptr;
 
     plugin = reg->curr;
@@ -435,10 +456,13 @@ void sp_internal_api_registry_add(char* api_name, void* api, bool32 reload)
     }
 }
 
-void sp_internal_api_registry_remove_reloaded(uint64 hash)
+void sp_internal_api_registry_remove_reloaded(uint64 hash, APIRegistry* registry)
 {
-    APIRegistry *reg = sp_internal_registry_get();
-
+    APIRegistry *reg = registry;
+    if(!reg)
+    {
+        reg = sp_internal_registry_get();
+    }
     //@NOTE: If we are removing a plugin that was reloaded we assume there is still another one here.
 
     SPlugin *plugin = reg->plugins;
@@ -474,7 +498,7 @@ void sp_internal_api_registry_remove_reloaded(uint64 hash)
 void sp_internal_api_registry_remove(char* api_name, bool32 reload, APIRegistry *registry)
 {
     //@TODO: Make sure to close the file_handle (win32) if this was a reloadable plugin.
-    reg = registry;
+    APIRegistry *reg = registry;
     if(!reg)
     {
         reg = sp_internal_registry_get();
@@ -484,7 +508,7 @@ void sp_internal_api_registry_remove(char* api_name, bool32 reload, APIRegistry 
 
     if(reload)
     {
-        sp_internal_api_registry_remove_reloaded(desired_api_hash);
+        sp_internal_api_registry_remove_reloaded(desired_api_hash, reg);
     }
     else
     {
@@ -558,9 +582,14 @@ void * sp_get_api(SPlugin *plugin)
 //Used to add a new plugin to the registry, if there is enough space all it does is return a 
 //pointer to the curr plugin. If there is not enough space then we will reallocate, copy the old memory
 //and then return a pointer to the new curr.
-SPlugin* sp_internal_api_registry_add_new_plugin()
+SPlugin* sp_internal_api_registry_add_new_plugin(APIRegistry *registry)
 {
-    APIRegistry *reg = sp_internal_registry_get();
+    APIRegistry *reg = registry;
+    if(!reg)
+    {
+        reg = sp_internal_registry_get();
+    }
+
     if(reg->used < reg->capacity)
     {
         return(reg->curr);
@@ -600,9 +629,14 @@ bool32 sp_internal_plugin_modified(SPlugin *plugin)
     return(modified);
 }
 
-void sp_internal_api_registry_check_reloadable_plugins()
+void sp_internal_api_registry_check_reloadable_plugins(APIRegistry *registry)
 {
-    APIRegistry *reg = sp_internal_registry_get();
+    APIRegistry *reg = registry;
+    if(!reg)
+    {
+        reg = sp_internal_registry_get();
+    }
+
     uint32 count = reg->reloadable_count;
     for(uint32 index = 0; index < count; ++index)
     {
@@ -619,6 +653,7 @@ void sp_internal_api_registry_check_reloadable_plugins()
         }
     }
 }
+
 //
 //End API Registry ----------------------------------------------------
 
@@ -634,7 +669,7 @@ SPlugin * sp_internal_win32_load_plugin(char* plugin_name, bool32 reloadable, AP
     {
         reg = sp_internal_registry_get();
     }
-    SPlugin *plugin = sp_internal_api_registry_add_new_plugin(); 
+    SPlugin *plugin = sp_internal_api_registry_add_new_plugin(reg); 
     plugin->hash = SP_HASH(plugin_name);
     plugin->reloadable = reloadable;
         
@@ -690,7 +725,7 @@ SPlugin * sp_internal_win32_load_plugin(char* plugin_name, bool32 reloadable, AP
 }
 
 
-bool32 sp_win32_reload_plugin(SPlugin* plugin, int32 index)
+bool32 sp_win32_reload_plugin(SPlugin* plugin, int32 index, APIRegistry* registry)
 {
     //Load the new plugin
     char buffer[256];
@@ -700,8 +735,14 @@ bool32 sp_win32_reload_plugin(SPlugin* plugin, int32 index)
     sp_string_extract_plugin_name(buffer, plugin_name);
     sp_string_build_tmp_name(plugin_name, &new_plugin_name, plugin->reload_count + 1);
 
-    APIRegistry *reg = sp_internal_registry_get();
-    SPlugin *new_plugin = sp_internal_api_registry_add_new_plugin(); 
+    APIRegistry *reg = registry;
+    if(!reg)
+    {
+        reg = sp_internal_registry_get();
+    
+    }
+
+    SPlugin *new_plugin = sp_internal_api_registry_add_new_plugin(reg); 
     new_plugin->hash = SP_HASH(plugin_name);
     new_plugin->reloadable = 1;
     new_plugin->reload_count = plugin->reload_count + 1;

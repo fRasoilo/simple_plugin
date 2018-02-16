@@ -1,18 +1,18 @@
 //Example of host loading a plugin to use it's API
 
-#include<Window.h>
+#include<Windows.h>
 
 #include <stdio.h>
 
 
-#include "sample_plugin.h"
+#include "simple_plugin.h"
 
 
 
 #include "sample_plugin.h"
 
 char* sample_plugin = "sample_plugin.dll";
-
+char* second_plugin = "sample_plugin.dll";
 
 int main()
 {
@@ -21,7 +21,7 @@ int main()
     //Let the library manage the plugin, we load the plugin we want and then request it's API from the library.
     //We don't need to keep track of the plugin.
     bool32 reloadable = true;
-    sp_load_plugin(plugin_name, reloadable);
+    sp_load_plugin(sample_plugin, reloadable);
     sample_plugin_api *sample_api = (sample_plugin_api*)sp_get_api(SAMPLE_PLUGIN_API_NAME);
     sample_api->my_print();
     sample_api->my_add_and_print(2,3);
