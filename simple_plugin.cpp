@@ -10,9 +10,10 @@
 
 
 #include "sample_plugin.h"
+#include "second_plugin.h"
 
 char* sample_plugin = "sample_plugin.dll";
-char* second_plugin = "sample_plugin.dll";
+char* second_plugin = "second_plugin.dll";
 
 int main()
 {
@@ -43,17 +44,17 @@ int main()
     //The examples above use the default registry provided by the library.
     //You can also create instances of an APIRegistry and use them instead of the default library one.
     //For example if you would like to create a separete registry for different kinds of plugins.
-    APIRegistry my_registry = sp_registry_create(args); //capacity
+    APIRegistry my_registry = sp_registry_create(10); //capacity
     
     //Now you can do all the same operations as above passing in your created registry.
-    sp_load_plugin(&my_registry,plugin_name, reloadable);
-    sample_plugin_api *sample_api = (sample_plugin_api*)sp_get_api(&my_registry,SAMPLE_PLUGIN_API_NAME);
+    sp_load_plugin(&my_registry,sample_plugin, reloadable);
+    sample_api = (sample_plugin_api*)sp_get_api(&my_registry,SAMPLE_PLUGIN_API_NAME);
     sample_api->my_print();
     sample_api->my_add_and_print(2,3);
 
 
     plugin = sp_load_plugin(&my_registry,second_plugin, !reloadable);
-    second_plugin_api *second_api = (second_plugin_api*)sp_get_api(&my_registry,plugin);
+    second_api = (second_plugin_api*)sp_get_api(&my_registry,plugin);
     second_api->my_second_print();
     
     sp_unload_plugin(&my_registry,plugin);
@@ -66,15 +67,15 @@ int main()
     //
     
     //Let's load up the sample_plugin again to demonstrate hot-reloading
-    sp_load_plugin(plugin_name, reloadable);
-    sample_plugin_api *sample_api = (sample_plugin_api*)sp_get_api(SAMPLE_PLUGIN_API_NAME);
+    sp_load_plugin(sample_plugin, reloadable);
+    sample_api = (sample_plugin_api*)sp_get_api(SAMPLE_PLUGIN_API_NAME);
     sample_api->my_print();
     
     while(1)
     {
         Sleep(100);
         //Run the registry update, it will check all reloadable plugins for changes.
-        sp_update(); 
+        //sp_update(); 
         //We need to get the api again in case the plugin has been modified
         sample_plugin_api *sample_api = (sample_plugin_api*)sp_get_api(SAMPLE_PLUGIN_API_NAME);
         sample_api->my_print();

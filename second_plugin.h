@@ -15,9 +15,11 @@ struct second_plugin_api
 
 };
 
+/*FUTURE RELEASE
 //Keep any global or heap allocated state here, this can be used if we want to transfer
 //state between two plugins of the same kind. For example in hot reloading.
-struct plugin_state
+struct second_plugin_state
 {
 
 };
+*/

@@ -80,6 +80,13 @@ typedef int32 bool32;
 #define InvalidCodePath SP_Assert(!"InvalidCodePath")
 #define InvalidDefaultCase default: {InvalidCodePath;} break
 
+//===============================================================================  
+// [IMPLEMENTATION]
+//=============================================================================== 
+
+
+#include <stdio.h>
+
 // String utilities ----------------------------------------------------
 
 // [INTERNAL] Str Buffer
@@ -291,9 +298,6 @@ bool32 sp_plugin_is_initialized(SPlugin* plugin)
     //Plugin should NOT be considered initialzed if any of these are Zero or null.
     return( plugin->hash && plugin->api_hash && plugin->api);
 }
-
-bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable);
-bool32 sp_win32_reload_plugin(SPlugin* plugin, int32 index);
 
 //Hash Functions ----------------------------------------------------
 //@TODO: Try out MurmurHash3
@@ -629,6 +633,10 @@ bool32 sp_internal_plugin_modified(SPlugin *plugin)
     return(modified);
 }
 
+//Forward declare.
+bool32 sp_internal_win32_reload_plugin(SPlugin* plugin, int32 index, APIRegistry *registry);
+
+
 void sp_internal_api_registry_check_reloadable_plugins(APIRegistry *registry)
 {
     APIRegistry *reg = registry;
@@ -646,7 +654,7 @@ void sp_internal_api_registry_check_reloadable_plugins(APIRegistry *registry)
             SPlugin *plugin = reg->reloadable_plugins[index];
             
             //@TODO: Refactor this: WIN32 RELOAD PLUGIN
-            sp_win32_reload_plugin(plugin, index);
+            sp_internal_win32_reload_plugin(plugin, index, reg);
             
             //
             //
@@ -725,7 +733,7 @@ SPlugin * sp_internal_win32_load_plugin(char* plugin_name, bool32 reloadable, AP
 }
 
 
-bool32 sp_win32_reload_plugin(SPlugin* plugin, int32 index, APIRegistry* registry)
+bool32 sp_internal_win32_reload_plugin(SPlugin* plugin, int32 index, APIRegistry* registry)
 {
     //Load the new plugin
     char buffer[256];

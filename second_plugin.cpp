@@ -15,7 +15,7 @@ SP_EXPORT void load_second_plugin(APIRegistry *reg, bool32 reload = false)
     printf("Second plugin is loaded!\n");
 
     SP_CREATE_API(second_plugin_api);
-    SP_INIT_API_FUNC_PTR(second_plugin_api,my_print);
+    SP_INIT_API_FUNC_PTR(second_plugin_api,my_second_print);
     SP_REGISTER_API(reg, second_plugin_api, reload);
 }
 

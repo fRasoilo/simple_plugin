@@ -152,7 +152,7 @@
 
 
 //Inlude the header for the plugin
-#include "plugin_example.h"
+#include "sample_plugin.h"
 
 //Include anything else you need for the plugin
 #include <stdio.h>
