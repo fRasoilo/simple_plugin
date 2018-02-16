@@ -768,7 +768,7 @@ SPlugin * sp_internal_win32_load_plugin(char* plugin_name, bool32 reloadable, AP
     {
         SP_Assert(!"Could not locate the plugin load function!!!");
     }
-    load_function(&sp_registry, false);
+    load_function(reg, false);
 
     //finally let's save the address of the unload function
     StrBuffer unload_function_name = {};
