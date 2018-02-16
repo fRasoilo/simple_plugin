@@ -347,7 +347,7 @@ typedef void (*unload_func)(APIRegistry *, bool32);
 
 void sp_internal_api_registry_add(char* api_name, void* api, bool32 reload);
 void sp_internal_api_registry_remove(char* plugin_name, bool32 reload );
-void * sp_internal_api_registry_get(char* api_name);
+void * sp_internal_api_registry_get(uint64 api_hash, APIRegistry *registry);
 void sp_internal_api_registry_transfer_state(void* old_state, void* new_sate);
 
 //@NOTE: Helper macros to be used in the creation of plugins
@@ -394,7 +394,7 @@ internal APIRegistry sp_internal_registry_create()
 global_variable APIRegistry sp_registry = sp_internal_registry_create();
 
 internal APIRegistry* 
-sp_registry_get()
+sp_internal_registry_get()
 {
     return (&sp_registry);
 }
@@ -504,11 +504,15 @@ void sp_internal_api_registry_remove(char* api_name, bool32 reload)
     reg->used--;
 }
 
-void * sp_internal_api_registry_get(char* api_name)
+void * sp_internal_api_registry_get(uint64 api_hash, APIRegistry *registry)
 {
-    APIRegistry *reg = sp_registry_get();
+    APIRegistry *reg = registry;
+    if(!reg)
+    {
+        reg = sp_registry_get();
+    }
 
-    uint64 desired_api_hash = SP_HASH(api_name);
+    uint64 desired_api_hash = api_hash;
     SPlugin *plugin = reg->plugins;
     uint32 count   = reg->capacity; 
     for(uint32 index = 0; index < count; ++index )
@@ -522,6 +526,30 @@ void * sp_internal_api_registry_get(char* api_name)
     }
     return(0);
 }
+
+void * sp_get_api(APIRegistry *registry,char *api_name)
+{
+    uint64 api_hash = SP_HASH(api_name);
+    return(sp_internal_api_registry_get(api_hash, registry));
+}
+
+void * sp_get_api(APIRegistry *registry,SPlugin *plugin)
+{
+    return(sp_internal_api_registry_get(plugin->api_hash, registry));
+}
+
+void * sp_get_api(char *api_name)
+{
+    uint64 api_hash = SP_HASH(api_name);
+    return(sp_internal_api_registry_get(api_hash, nullptr));
+}
+
+void * sp_get_api(SPlugin *plugin)
+{
+    return(sp_internal_api_registry_get(plugin->api_hash, nullptr));
+}
+
+
 
 //Used to add a new plugin to the registry, if there is enough space all it does is return a 
 //pointer to the curr plugin. If there is not enough space then we will reallocate, copy the old memory
@@ -595,9 +623,13 @@ void sp_internal_api_registry_check_reloadable_plugins()
 // Plugin Functions
 
 
-bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
+SPlugin * sp_internal_win32_load_plugin(char* plugin_name, bool32 reloadable, APIRegistry *registry = nullptr)
 {
-    APIRegistry *reg = sp_registry_get();
+    APIRegistry *reg = registry;
+    if(!reg)
+    {
+        reg = sp_registry_get();
+    }
     SPlugin *plugin = sp_internal_api_registry_add_new_plugin(); 
     plugin->hash = SP_HASH(plugin_name);
     plugin->reloadable = reloadable;
@@ -650,7 +682,7 @@ bool32 sp_win32_load_plugin(char* plugin_name, bool32 reloadable)
         SP_Assert(!"Could not locate the plugin UNLOAD function!!!");
     }
     
-    return true;
+    return (plugin);
 }
 
 
@@ -723,6 +755,29 @@ bool32 sp_win32_reload_plugin(SPlugin* plugin, int32 index)
     
     return true;
 }
+
+SPlugin *
+sp_load_plugin(APIRegistry *registry, char* plugin_name, bool32 reloadable)
+{
+    SPlugin *plugin = nullptr;
+    #ifdef _WIN32
+    plugin = sp_internal_win32_load_plugin(plugin_name, reloadable, registry);
+    #else
+        //@TODO: Add other OS
+        #error NO OTHER OS DEFINED
+    #endif //_WIN32
+
+    return (plugin);
+}
+    
+
+SPlugin *
+sp_load_plugin(char* plugin_name, bool32 reloadable)
+{
+    return(sp_load_plugin(nullptr, plugin_name, reloadable));
+}
+
+    
 //End Plugin Functions
 
 

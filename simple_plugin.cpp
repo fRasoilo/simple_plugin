@@ -52,8 +52,8 @@ int main()
     sample_api->my_add_and_print(2,3);
 
 
-    plugin = sp_load_plugin(second_plugin, !reloadable);
-    second_plugin_api *second_api = (second_plugin_api*)sp_get_api(plugin);
+    plugin = sp_load_plugin(&my_registry,second_plugin, !reloadable);
+    second_plugin_api *second_api = (second_plugin_api*)sp_get_api(&my_registry,plugin);
     second_api->my_second_print();
     
     sp_unload_plugin(&my_registry,plugin);
