@@ -908,8 +908,13 @@ void sp_unload_plugin(APIRegistry * registry,char* api_name)
 
 void sp_unload_plugin(APIRegistry * registry,SPlugin *plugin)
 {
+    APIRegistry *reg = registry;
+    if(!reg)
+    {
+        reg = sp_internal_registry_get();
+    }
     unload_func unload_function = (unload_func)plugin->unload_func;
-    unload_function(registry, false);
+    unload_function(reg, false);
     sp_internal_plugin_cleanup(plugin);
     *plugin = {}; //reset this slot
 }
