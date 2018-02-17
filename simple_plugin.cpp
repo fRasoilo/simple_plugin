@@ -68,6 +68,8 @@ int main()
     //We can also unload it trough the API name
     sp_unload_plugin(&my_registry,SAMPLE_PLUGIN_API_NAME);
 
+    sp_registry_destroy(&my_registry);
+
 
     //
     //Hot Reloading

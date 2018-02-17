@@ -910,8 +910,11 @@ void sp_registry_destroy(APIRegistry *registry)
     {
         SPlugin *plugin = &registry->plugins[index];
         unload_func unload_function = (unload_func)plugin->unload_func;
-        unload_function(registry, false);
-        sp_internal_plugin_cleanup(plugin);
+        if(unload_function)
+        {
+            unload_function(registry, false);
+            sp_internal_plugin_cleanup(plugin);
+        }
     }
     free(registry->plugins);
     *registry = {};
