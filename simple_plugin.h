@@ -95,6 +95,7 @@
 //===============================================================================
 //
 // API  : API reference can be found further down.
+//         [User Defines]
 //         [Loading a plugin]
 //         [Unloading a plugin]
 //         [Querying for an API / Getting an API]
@@ -154,34 +155,23 @@ typedef int32 bool32;
 //[INTERNAL] -- This is not really part of the API but it is defined here so that the plugins can see it without having to drag int
 //              the rest of the library.
 //API registry -- idea taken from "http://ourmachinery.com/post/little-machines-working-together-part-1/"
-
-//CAN BE USER DEFINED
-#define SP_REGISTRY_INITIAL_CAPACITY 10
-#define SP_REGISTRY_GROWTH_FACTOR    2
-#define SP_MAX_PLUGINS 100
-
 //forward declare
 struct SPlugin;
-
-struct APIRegistry
-{
-    int32 capacity;
-    int32 used;
-
-    SPlugin *plugins;
-
-    SPlugin *reloadable_plugins[SP_MAX_PLUGINS];
-    uint16 reloadable_count;
-    //Some helpers to speed up lookup of plugins and "holes".
-    SPlugin *curr;
-    int32 next_hole_index;
-
-    void (*add)(char* plugin_name, void* api, bool32 reload, APIRegistry* registry);
-    void (*remove)(char* plugin_name, bool32 reload, APIRegistry *registry);
-    void* (*get)(uint64 api_hash, APIRegistry *registry);
+struct APIRegistry;
 
 
-};
+//=============================================================================
+// API - [User Defines]
+//
+//=============================================================================
+//These can be user defined
+
+//Initial capacity of the default api registry
+#define SP_REGISTRY_INITIAL_CAPACITY 10
+//Growth factor for the apiregistry
+#define SP_REGISTRY_GROWTH_FACTOR    2
+//Maximum number of reloadable plugins that the registry can have
+#define SP_MAX_RELOADABLE_PLUGINS 100
 
 //=============================================================================
 // API - [Loading a plugin]
@@ -304,8 +294,26 @@ APIRegistry sp_registry_create(uint32 capacity);
 //This function is used to destroy a user created registry.
 //All plugins will be removed from the registry, all plugins will call their unload function and any file or library handles will be cleaned up.
 void sp_registry_destroy(APIRegistry *registry);
+//
 
 
+struct APIRegistry
+{
+    int32 capacity;
+    int32 used;
+
+    SPlugin *plugins;
+
+    SPlugin *reloadable_plugins[SP_MAX_RELOADABLE_PLUGINS];
+    uint16 reloadable_count;
+    //Some helpers to speed up lookup of plugins and "holes".
+    SPlugin *curr;
+    int32 next_hole_index;
+
+    void (*add)(char* plugin_name, void* api, bool32 reload, APIRegistry* registry);
+    void (*remove)(char* plugin_name, bool32 reload, APIRegistry *registry);
+    void* (*get)(uint64 api_hash, APIRegistry *registry);
+};
 
 //===============================================================================  
 // [IMPLEMENTATION]
