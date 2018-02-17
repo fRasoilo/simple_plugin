@@ -19,7 +19,12 @@
 //===============================================================================  
 // Todo List :
 // 
-//  - Support for differnt OS  
+//  - Support for differnt OS.  
+//  - Be able to inform the user exactly which plugin has been modified when hot-reloading.
+//  - Make so that pointers to plugins do NOT become invalid when the plugin is hot reloaded.
+//  - Make it so that we can specify if a the registry is dynamic or static.
+//  - Be able to specify the hash function used.
+//  
 //
 //===============================================================================  
 //  You MUST define SIMPLE_PLUGIN_IMPLEMENTATION
@@ -94,7 +99,7 @@
 //         [Unloading a plugin]
 //         [Querying for an API / Getting an API]
 //         [Hot Reloading Plugins]
-//         [Creating another API registry]  
+//         [Creating another API registry and destroying it]  
 //===============================================================================  
 
 
@@ -193,6 +198,10 @@ struct APIRegistry
 //and many functions take a registry as an argument.
 //The user has the option of using this plugin pointer directly to query for the API, however it is
 //not necessary to keep this pointer as there are other functions available to query a plugin's API.
+//
+// *** ATTENTION ***
+// At the moment it is NOT advisable to keep direct pointers to plugins that will be hot-reloaded as these pointers
+// may become invalid once the plugin is hot-reload by the library. This might be fixed in the future. @TODO.
 SPlugin * sp_load_plugin(char* plugin_name, bool32 reloadable);
 
 //This function is the same as the one above, however in here we can pass in a pointer to a APIRegistry that we have created.
@@ -237,13 +246,20 @@ void sp_unload_plugin(SPlugin *plugin);
 //
 //=============================================================================
 
+//This function returns a void pointer that points to the API struct of a given plugin.
+//We have to cast this pointer to the appropriate struct type so we can use the API provided by a plugin.
+//All this is available in the plugins header.
 //
+//plugin - pointer to a SPlugin 
 void * sp_get_api(SPlugin *plugin);
 
-//
+//Same as above only in this function we are passing in the name of the API that is presented by the plugin.
+//api_name - name of the API made available by the plugin (convention is PLUGIN_NAME_API_NAME)
 void * sp_get_api(char *api_name);
 
-//
+//The next two functions act exactly the same as the ones above, only difference is that we are passing in a different APIRegistry,
+//instead of using the default.
+//If a plugin is registred with a different registry then we MUST use these versions and pass in the correct registry.
 void * sp_get_api(APIRegistry *registry,SPlugin *plugin);
 
 //
@@ -255,19 +271,39 @@ void * sp_get_api(APIRegistry *registry,char *api_name);
 //
 //=============================================================================
 
+//This function is used tell the API registry to scan all the plugins that are registred as 'reloadable'.
+//If any of these plugins have been changed then the library is in charge of loading the new version, unloading the old version
+//and registring thhe new version appropriatly.
 //
+//***ATTENTION***
+// - Any pointers that you might have had that point directly to a plugin might become invalid for hot-reloadable plugins 
+// - While the library is in charge of monitoring the plugin, loading the new one and unloading the old version, the USER
+//   is responsible for getting the API from the new version.
+// - Check the simple_plugin.cpp file for more details.
+//
+//The return type is a bool32 that indicated whether any plugins have changed, tho at the moment the library does not specify which one. @TODO
 bool32 sp_update();
 
-//
+//Same as above but instead of updating the default registry we update the given registry
+//registry - a user specified registry
 bool32 sp_update(APIRegistry *registry);
 
 //=============================================================================
-// API - [Creating another API registry]
+// API - [Creating another API registry and destroying it]
 //
 //=============================================================================
 
+//This function creates an api registry that is user defined. 
+//In the simple_plugin.cpp file you can see an example of how or why a user might do this.
 //
+// capacity - the initial capacity of the registry.
+// 
+// The function returns the created APIRegistry struct.
 APIRegistry sp_registry_create(uint32 capacity);
+
+//This function is used to destroy a user created registry.
+//All plugins will be removed from the registry, all plugins will call their unload function and any file or library handles will be cleaned up.
+void sp_registry_destroy(APIRegistry *registry);
 
 
 
@@ -863,7 +899,23 @@ bool32 sp_update()
     return(sp_update(nullptr));
 }
 
-
+void sp_registry_destroy(APIRegistry *registry)
+{
+    if(!registry)
+    {
+        registry = sp_internal_registry_get();
+    }
+    uint32 count = registry->capacity;
+    for(uint32 index = 0; index < count; ++index)
+    {
+        SPlugin *plugin = &registry->plugins[index];
+        unload_func unload_function = (unload_func)plugin->unload_func;
+        unload_function(registry, false);
+        sp_internal_plugin_cleanup(plugin);
+    }
+    free(registry->plugins);
+    *registry = {};
+}
 //
 //End API Registry ----------------------------------------------------
 
@@ -1080,6 +1132,8 @@ void sp_unload_plugin(SPlugin *plugin)
 {
     sp_unload_plugin(nullptr, plugin);
 }
+
+
 
 
 //End Plugin Functions
