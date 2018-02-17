@@ -34,14 +34,67 @@
 //=============================================================================
 // Basic Usage / Quick Start :
 //
-// 
-//
 // After defining SIMPLE_PLUGIN_IMPLEMENTATION
 //
+// ** In the CLIENT code **
+//
+// call     sp_load_plugin(char* plugin_name, bool32 reloadable);
+// where        plugin_name is the name of a plugin (dll) you have created
+//              realoadable indicates whether this plugin should be hot-reloaded if changed
+//
+//
+// use       sp_get_api(char* api_name) to get back a pointer to the API you request.
+//              you must cast this pointer to the appropriate type that represents the API struct
+//              you are requesting, this information can be found in the plugin header.           
+//
+// FOR A COMPLETE EXAMPLE, CHECK OUT simple_plugin.cpp where there is a small but comprehensive
+// program that shows how to use the library
+//
+//
+// ** Creating Plugins **
+//
+// For a guide on how to create plugins, please check out the sample_plugin.h and sample_plugin.cpp
+// files.
+// These two files show a complete example plugin with comprehensive comments explaining how to create a plugin,
+// the conventions used and what functions from the library you need to use.
+// You can either use the sample plugin as a guide or as a skeleton for writing your own.
+//
+//
+//  ** ATTENTION FOR WINDOWS USERS **
+//  --------------------------------
+//  There is a well known issue with Visual Studio locking pdb files for executables.
+//  This affects hot-reloading if using Visual Studio (for debugging or otherwise) since the 
+//  pdb will be locked and we wont be able to recompile our plugins (dlls).
+//
+//  There are different solutions out there for dealing with this, one of which is to 
+//  give the pdb a unique name when we compile our plugins.
+//
+//  If using the msvc compiler from the command line you can use the following switch to set the
+//  pdb file to a random number or add a random number to another string.
+//
+//  Example of compiling a dll with msvc command line tool and setting pdb to random number
 // 
+//  cl /LD sample_plugin.cpp /PDB:sample_plugin.%RANDOM%.pdb
+//
+//  I have not tried to do this in Visual Studio as I usually compile from the command line,
+//  however this answer seems to have worked for people:
+//
+//  https://stackoverflow.com/questions/36387105/how-do-you-in-visual-studio-generate-a-pdb-file-with-a-random-outputted-name#36447979
+//   
+//
+//  If you have other solutions please feel free to get in touch
+//
+//  @filipe_rasoilo
+//  rasoilo.com
+//  *********************************
 //===============================================================================
 //
 // API  : API reference can be found further down.
+//         [Loading a plugin]
+//         [Unloading a plugin]
+//         [Querying for an API / Getting an API]
+//         [Hot Reloading Plugins]
+//         [Creating another API registry]  
 //===============================================================================  
 
 
@@ -130,28 +183,52 @@ struct APIRegistry
 //
 //=============================================================================
 
+//Used to load in a plugin.
+//plugin_name - specifies name of the plugin
+//reloadable  - this indicates whether we want to hot reload this plugin in case of recompile
 //
-SPlugin * sp_load_plugin(APIRegistry *registry, char* plugin_name, bool32 reloadable);
-
-//
+//This function returns a pointer to the plugin structure that was created by the library and registred with the
+//default  API registry sp_registry. This is a static variable of APIRegistry that the library creates and use as the 
+//default registry to keep track of plugins. However a user of the library has the option of creating their own registry, 
+//and many functions take a registry as an argument.
+//The user has the option of using this plugin pointer directly to query for the API, however it is
+//not necessary to keep this pointer as there are other functions available to query a plugin's API.
 SPlugin * sp_load_plugin(char* plugin_name, bool32 reloadable);
 
+//This function is the same as the one above, however in here we can pass in a pointer to a APIRegistry that we have created.
+//The loaded plugin will be registred with the registry that we pass in (and not the default user created registry as above).
+//For an example of this, please refer to the simple_plugin.cpp file.
+SPlugin * sp_load_plugin(APIRegistry *registry, char* plugin_name, bool32 reloadable);
 
 //=============================================================================
 // API - [Unloading a plugin]
 //
 //=============================================================================
 
+//All these functions unload a plugin from the system, what this means is that
+//we call the user specified unload function of the plugin. 
+//After that we remove the plugin from whichever APIRegistry was keeping track of it.
+//And we clean up by closing any handles to files or libraries that might be left.
+
+//Unload a plugin from a given registry by using the api_name that the plugin offers.
+//This would be the PLUGIN_NAME_API_NAME that is the defined in the plugin header.
+//See the sample_plugin.h file for more details on what the PLUGIN_NAME_API_NAME define refers too.
 //
+//registry - the registry to which this plugin belongs too.
+//api_name - the api_name whose plugin we want to unload. 
 void sp_unload_plugin(APIRegistry * registry,char* api_name);
 
-//
+//This is the same as above, however in this one we pass in a pointer to the plugin directly.
+//registry - the registry to which this plugin belongs too.
+//plugin   - a pointer to a SPLugin that we want to unload.
 void sp_unload_plugin(APIRegistry * registry,SPlugin *plugin);
 
-//
+//The same as sp_unload_plugin(APIRegistry * registry,char* api_name);
+//But in this function the registry is the default registry that is created by the library.
 void sp_unload_plugin(char* api_name);
 
-//
+//The same as void sp_unload_plugin(APIRegistry * registry,SPlugin *plugin);
+//However in this instance the registry is the default registry that is created by the libary 
 void sp_unload_plugin(SPlugin *plugin);
 
 //
