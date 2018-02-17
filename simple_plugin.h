@@ -85,9 +85,15 @@
 //  however this answer seems to have worked for people:
 //
 //  https://stackoverflow.com/questions/36387105/how-do-you-in-visual-studio-generate-a-pdb-file-with-a-random-outputted-name#36447979
-//   
+//  
+//  Another good thing to do is to set up an alternative folder or path for the pdbs to be created in.
+//  Since we will create a new pdb everytime we recompile a plugin, this will lead to a lot of them being created and possibly polluting
+//  out exe folder.
+// 
+//  If using msvc from the command line we can use the /PDBALTPATH switch to specify this folder. More information can be found at the website :
+//      https://msdn.microsoft.com/en-us/library/dd998269.aspx
 //
-//  If you have other solutions please feel free to get in touch
+//  If you have other solutions please feel free to get in touch!
 //
 //  @filipe_rasoilo
 //  rasoilo.com
