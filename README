@@ -1,0 +1,12 @@
+== README ==
+
+ simple_plugin is a small library written in C++ that provides an easy way to
+ add plugins to an application. simple_plugin also support Hot-Reloading of plugins
+ This means you can have faster iteration times when working: make a change, compile,
+ simple_plugin hot reloads any plugin you have set to be reloadable instantly.
+
+  It is a single file header that should be very easy to drop-in and start using in any pre-existing project.
+
+- It currently only supports Windows applications.
+
+For a quick start check the top of simple_plugin.h in the section called "Basic Usage / Quick Start"/
